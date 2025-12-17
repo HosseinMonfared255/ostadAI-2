@@ -1,22 +1,24 @@
+
 import React, { useState } from 'react';
-import { Edit2, X, Check, Trash2 } from 'lucide-react';
+import { Plus, X, Trash2, Calendar as CalendarIcon, Check, Edit3, Save } from 'lucide-react';
 import { getPersianDay, getPersianMonthName, isSameDay, formatPersianDate } from '../utils/dateUtils';
 import { Project, Task, TaskType, TASK_TYPE_LABELS } from '../types';
+import { v4 as uuidv4 } from 'uuid';
 
 interface PersianCalendarProps {
   project: Project;
-  onDayClick?: (date: Date) => void;
-  onTaskUpdate?: (date: Date, newType: TaskType | null) => void;
+  onTasksChange: (updatedTasks: Task[]) => void;
 }
 
-export const PersianCalendar: React.FC<PersianCalendarProps> = ({ project, onDayClick, onTaskUpdate }) => {
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [selectedDateForEdit, setSelectedDateForEdit] = useState<Date | null>(null);
+export const PersianCalendar: React.FC<PersianCalendarProps> = ({ project, onTasksChange }) => {
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [newTaskDesc, setNewTaskDesc] = useState('');
+  const [newTaskType, setNewTaskType] = useState<TaskType>(TaskType.STUDY);
 
-  // Generate a view of the current month/window
   const today = new Date();
   const startDate = new Date(today);
-  startDate.setDate(today.getDate() - 10); // Start 10 days ago
+  startDate.setDate(today.getDate() - 10); 
   
   const days: Date[] = [];
   for (let i = 0; i < 35; i++) {
@@ -25,8 +27,8 @@ export const PersianCalendar: React.FC<PersianCalendarProps> = ({ project, onDay
     days.push(d);
   }
 
-  const getTaskForDay = (date: Date): Task | undefined => {
-    return project.tasks.find(t => isSameDay(new Date(t.date), date));
+  const getTasksForDay = (date: Date): Task[] => {
+    return project.tasks.filter(t => isSameDay(new Date(t.date), date));
   };
 
   const getTaskColor = (type: TaskType) => {
@@ -40,151 +42,171 @@ export const PersianCalendar: React.FC<PersianCalendarProps> = ({ project, onDay
     }
   };
 
-  const handleDayClick = (date: Date) => {
-    if (isEditMode) {
-      setSelectedDateForEdit(date);
-    } else if (onDayClick) {
-      onDayClick(date);
-    }
+  const handleAddTask = () => {
+    if (!selectedDate || !newTaskDesc.trim()) return;
+    const newTask: Task = {
+      id: uuidv4(),
+      projectId: project.id,
+      date: selectedDate.toISOString(),
+      type: newTaskType,
+      description: newTaskDesc,
+      isCompleted: false
+    };
+    onTasksChange([...project.tasks, newTask]);
+    setNewTaskDesc('');
   };
 
-  const confirmTaskChange = (type: TaskType | null) => {
-    if (selectedDateForEdit && onTaskUpdate) {
-      onTaskUpdate(selectedDateForEdit, type);
-    }
-    setSelectedDateForEdit(null);
+  const handleDeleteTask = (taskId: string) => {
+    onTasksChange(project.tasks.filter(t => t.id !== taskId));
+  };
+
+  const handleUpdateTask = (taskId: string, updates: Partial<Task>) => {
+    onTasksChange(project.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t));
+    setEditingTaskId(null);
   };
 
   return (
-    <div className={`w-full bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 border transition-all duration-300 relative ${isEditMode ? 'border-indigo-300 ring-2 ring-indigo-50 dark:ring-indigo-900/30' : 'border-gray-100 dark:border-gray-700'}`}>
-      
-      {/* Header */}
-      <div className="flex justify-between items-center mb-4 px-2">
-        <div className="flex items-center gap-2">
-          <h3 className="font-bold text-gray-700 dark:text-gray-200">تقویم مطالعاتی</h3>
-          {isEditMode && <span className="text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 px-2 py-0.5 rounded-full animate-pulse">حالت ویرایش</span>}
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">{getPersianMonthName(today)}</span>
-          <button 
-            onClick={() => setIsEditMode(!isEditMode)}
-            className={`p-2 rounded-lg transition-all ${isEditMode ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
-            title={isEditMode ? "ذخیره تغییرات" : "ویرایش برنامه"}
-          >
-            {isEditMode ? <Check size={18} /> : <Edit2 size={18} />}
-          </button>
-        </div>
+    <div className="w-full bg-white dark:bg-gray-800 rounded-3xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="font-black text-gray-800 dark:text-gray-100 flex items-center gap-2">
+          <CalendarIcon className="text-indigo-600" size={20} />
+          تقویم برنامه ریزی
+        </h3>
+        <span className="text-xs font-bold bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full text-gray-500">
+          {getPersianMonthName(today)} {new Intl.DateTimeFormat('fa-IR', { calendar: 'persian', year: 'numeric' }).format(today)}
+        </span>
       </div>
       
-      {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-2">
-        {/* Days of week headers (Persian) */}
+      <div className="grid grid-cols-7 gap-3">
         {['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'].map((d, i) => (
-          <div key={i} className="text-center text-xs text-gray-400 dark:text-gray-500 py-1">{d}</div>
+          <div key={i} className="text-center text-[10px] font-black text-gray-400 py-1">{d}</div>
         ))}
 
         {days.map((date, idx) => {
-          const task = getTaskForDay(date);
-          const isToday = isSameDay(date, new Date());
-          const colorName = task ? getTaskColor(task.type) : 'gray';
+          const tasks = getTasksForDay(date);
+          const isToday = isSameDay(date, today);
           
-          // Tailwind class construction
-          const baseClasses = "h-14 rounded-xl flex flex-col items-center justify-center text-sm transition-all relative";
-          
-          let specificClasses = "";
-          if (task) {
-             if (task.isCompleted) {
-                specificClasses = `bg-${colorName}-500 text-white`;
-             } else {
-                specificClasses = `border-2 border-${colorName}-500 text-${colorName}-700 dark:text-${colorName}-400 font-medium`;
-             }
-          } else if (isToday) {
-             specificClasses = "border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-400";
-          } else {
-             specificClasses = "bg-gray-50 dark:bg-gray-900 text-gray-300 dark:text-gray-600";
-          }
-
-          // Edit mode styling override
-          if (isEditMode) {
-             specificClasses += " cursor-pointer hover:scale-105 active:scale-95 hover:shadow-md";
-             if (!task) specificClasses += " hover:bg-gray-100 dark:hover:bg-gray-700";
-          } else {
-             specificClasses += " cursor-default";
-          }
-
           return (
-            <div 
+            <button 
               key={idx} 
-              onClick={() => handleDayClick(date)}
-              className={`${baseClasses} ${specificClasses}`}
-              title={task ? `${task.type}: ${task.description}` : ''}
+              onClick={() => setSelectedDate(date)}
+              className={`h-16 rounded-2xl flex flex-col items-center justify-center transition-all relative group ${
+                isToday ? 'ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-gray-900' : ''
+              } ${tasks.length > 0 ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'bg-gray-50 dark:bg-gray-900/40 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
             >
-              <span className="text-xs font-bold">{getPersianDay(date)}</span>
-              {task && (
-                <div className={`w-1.5 h-1.5 rounded-full mt-1 ${task.isCompleted ? 'bg-white' : `bg-${colorName}-500`}`} />
-              )}
-              {isEditMode && task && (
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full flex items-center justify-center">
-                   <div className={`w-1.5 h-1.5 rounded-full bg-${colorName}-500`}></div>
-                </div>
-              )}
-            </div>
+              <span className={`text-xs font-bold ${isToday ? 'text-indigo-600' : 'text-gray-500'}`}>{getPersianDay(date)}</span>
+              <div className="flex gap-0.5 mt-1 overflow-hidden px-1">
+                {tasks.slice(0, 3).map(t => (
+                  <div key={t.id} className={`w-1.5 h-1.5 rounded-full bg-${getTaskColor(t.type)}-500`} />
+                ))}
+                {tasks.length > 3 && <div className="w-1 h-1 rounded-full bg-gray-400" />}
+              </div>
+            </button>
           );
         })}
       </div>
-      
-      {/* Legend */}
-      {!isEditMode && (
-        <div className="flex flex-wrap gap-3 mt-4 justify-center text-xs text-gray-500 dark:text-gray-400">
-          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-indigo-500 rounded-full"></div> مطالعه</div>
-          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-amber-500 rounded-full"></div> مرور</div>
-          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-rose-500 rounded-full"></div> آزمون</div>
-          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-500 rounded-full"></div> تمرین</div>
-          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-sky-500 rounded-full"></div> تدریس</div>
-        </div>
-      )}
 
-      {/* Edit Mode Instructions */}
-      {isEditMode && (
-        <div className="mt-4 text-center text-xs text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 p-2 rounded-lg">
-          برای تغییر یا حذف برنامه، روی روز مورد نظر کلیک کنید.
-        </div>
-      )}
-
-      {/* Type Selection Modal */}
-      {selectedDateForEdit && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl animate-fade-in">
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-11/12 max-w-xs">
-            <div className="flex justify-between items-center mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">
-              <span className="font-bold text-gray-800 dark:text-gray-100">{formatPersianDate(selectedDateForEdit)}</span>
-              <button onClick={() => setSelectedDateForEdit(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                <X size={20} />
+      {/* Pop-up Modal */}
+      {selectedDate && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedDate(null)}>
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-scale-in" onClick={e => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
+              <div>
+                <h4 className="font-black text-lg text-gray-800 dark:text-white">{formatPersianDate(selectedDate)}</h4>
+                <p className="text-[10px] text-gray-400 font-bold">مدیریت وظایف روزانه</p>
+              </div>
+              <button onClick={() => setSelectedDate(null)} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors">
+                <X size={24} />
               </button>
             </div>
-            
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {Object.values(TaskType).map((type) => {
-                const color = getTaskColor(type);
-                return (
-                  <button
-                    key={type}
-                    onClick={() => confirmTaskChange(type)}
-                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border-2 text-xs font-bold transition-colors border-${color}-100 dark:border-${color}-900 bg-${color}-50 dark:bg-${color}-900/30 text-${color}-700 dark:text-${color}-300 hover:border-${color}-500`}
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Task List */}
+              <div className="space-y-4">
+                <h5 className="text-xs font-black text-gray-400 uppercase tracking-widest">وظایف ثبت شده</h5>
+                {getTasksForDay(selectedDate).length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed rounded-2xl border-gray-100 dark:border-gray-700">
+                    <p className="text-xs text-gray-400">برنامه‌ای برای این روز ثبت نشده است.</p>
+                  </div>
+                ) : (
+                  getTasksForDay(selectedDate).map(task => (
+                    <div key={task.id} className="group bg-gray-50 dark:bg-gray-900/40 p-4 rounded-2xl border dark:border-gray-700 transition-all hover:shadow-sm">
+                      {editingTaskId === task.id ? (
+                        <div className="space-y-3">
+                          <input 
+                            autoFocus
+                            className="w-full bg-white dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                            defaultValue={task.description}
+                            onBlur={(e) => handleUpdateTask(task.id, { description: e.target.value })}
+                            onKeyDown={(e) => e.key === 'Enter' && handleUpdateTask(task.id, { description: e.currentTarget.value })}
+                          />
+                          <div className="flex gap-2">
+                            {Object.values(TaskType).map(type => (
+                              <button 
+                                key={type} 
+                                onClick={() => handleUpdateTask(task.id, { type })}
+                                className={`text-[9px] px-2 py-1 rounded-lg border font-bold ${task.type === type ? `bg-${getTaskColor(type)}-500 text-white border-${getTaskColor(type)}-500` : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-600'}`}
+                              >
+                                {TASK_TYPE_LABELS[type]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-3">
+                          <div className={`mt-1.5 w-2 h-2 rounded-full bg-${getTaskColor(task.type)}-500 shadow-[0_0_8px] shadow-${getTaskColor(task.type)}-500/50`} />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`text-[9px] font-black uppercase text-${getTaskColor(task.type)}-600`}>{TASK_TYPE_LABELS[task.type]}</span>
+                              {task.isCompleted && <span className="text-[9px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 px-1.5 rounded flex items-center gap-0.5"><Check size={8}/> انجام شده</span>}
+                            </div>
+                            <p className="text-sm font-bold text-gray-700 dark:text-gray-200">{task.description}</p>
+                          </div>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => setEditingTaskId(task.id)} className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-indigo-500 rounded-lg"><Edit3 size={14} /></button>
+                            <button onClick={() => handleDeleteTask(task.id)} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-rose-500 rounded-lg"><Trash2 size={14} /></button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Add Task Section */}
+              <div className="pt-6 border-t dark:border-gray-700">
+                <h5 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">افزودن وظیفه جدید</h5>
+                <div className="bg-indigo-50/30 dark:bg-indigo-900/10 p-4 rounded-2xl space-y-4">
+                  <textarea 
+                    placeholder="توضیح فعالیت را اینجا بنویسید..."
+                    value={newTaskDesc}
+                    onChange={(e) => setNewTaskDesc(e.target.value)}
+                    className="w-full bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500 transition-all resize-none min-h-[80px]"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {Object.values(TaskType).map(type => (
+                      <button 
+                        key={type} 
+                        onClick={() => setNewTaskType(type)}
+                        className={`text-[10px] px-3 py-1.5 rounded-xl border-2 font-black transition-all ${newTaskType === type ? `bg-${getTaskColor(type)}-500 text-white border-${getTaskColor(type)}-500 shadow-lg shadow-${getTaskColor(type)}-500/20` : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-100 dark:border-gray-700 hover:border-indigo-200'}`}
+                      >
+                        {TASK_TYPE_LABELS[type]}
+                      </button>
+                    ))}
+                  </div>
+                  <button 
+                    onClick={handleAddTask}
+                    disabled={!newTaskDesc.trim()}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-xl shadow-indigo-100 dark:shadow-none"
                   >
-                    {TASK_TYPE_LABELS[type]}
+                    <Plus size={18} />
+                    ثبت در تقویم
                   </button>
-                )
-              })}
+                </div>
+              </div>
             </div>
-            
-            <button
-              onClick={() => confirmTaskChange(null)}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 text-xs font-bold hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 hover:border-red-200 transition-colors"
-            >
-              <Trash2 size={14} />
-              <span>حذف / روز خالی</span>
-            </button>
           </div>
         </div>
       )}

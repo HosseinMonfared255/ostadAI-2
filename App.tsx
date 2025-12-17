@@ -4,7 +4,6 @@ import {
   BookOpen, 
   Plus, 
   CheckCircle2, 
-  Circle, 
   BrainCircuit, 
   LayoutDashboard,
   CalendarDays,
@@ -23,8 +22,17 @@ import {
   HelpCircle,
   Clock,
   Calendar,
+  ListOrdered,
+  Key,
+  ChevronDown,
+  ChevronUp,
+  Cpu,
+  CheckCircle,
+  ExternalLink,
+  ShieldCheck,
+  Lock,
   Check,
-  ListOrdered
+  Info
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -38,8 +46,6 @@ import {
   TASK_TYPE_LABELS,
   PHASE_LABELS,
   STATE_LABELS,
-  AnalysisResult,
-  Checkpoint,
   PERSIAN_DAYS,
   TimeRange
 } from './types';
@@ -47,19 +53,18 @@ import { generateStudyPlan, analyzeLearningProgress } from './services/geminiSer
 import { formatPersianDate, isSameDay } from './utils/dateUtils';
 import { PersianCalendar } from './components/PersianCalendar';
 
-// --- Mock Data / Initial State Helper ---
 const loadProjects = (): Project[] => {
   const saved = localStorage.getItem('ostad_projects');
   return saved ? JSON.parse(saved) : [];
 };
 
 const THEME_COLORS = [
-  { id: 'indigo', name: 'نیلی', class: 'indigo' },
-  { id: 'rose', name: 'سرخ', class: 'rose' },
-  { id: 'emerald', name: 'زمردی', class: 'emerald' },
-  { id: 'sky', name: 'آسمانی', class: 'sky' },
-  { id: 'amber', name: 'کهربایی', class: 'amber' },
-  { id: 'violet', name: 'بنفش', class: 'violet' },
+  { name: 'indigo', label: 'نیلی', class: 'bg-indigo-600' },
+  { name: 'emerald', label: 'زمردی', class: 'bg-emerald-600' },
+  { name: 'rose', label: 'رز', class: 'bg-rose-600' },
+  { name: 'amber', label: 'کهربایی', class: 'bg-amber-600' },
+  { name: 'sky', label: 'آسمانی', class: 'bg-sky-600' },
+  { name: 'violet', label: 'بنفش', class: 'bg-violet-600' },
 ];
 
 export default function App() {
@@ -68,10 +73,13 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  
+
   // Theme State
   const [darkMode, setDarkMode] = useState<boolean>(() => localStorage.getItem('themeMode') === 'dark');
   const [themeColor, setThemeColor] = useState<string>(() => localStorage.getItem('themeColor') || 'indigo');
+  
+  // Model State
+  const [selectedModel, setSelectedModel] = useState<string>(() => localStorage.getItem('activeModel') || 'gemini-3-flash-preview');
 
   // Create Project Form State
   const [newProject, setNewProject] = useState<CreateProjectInput>({
@@ -92,7 +100,14 @@ export default function App() {
     localStorage.setItem('ostad_projects', JSON.stringify(projects));
   }, [projects]);
 
-  // Apply Theme Effects
+  useEffect(() => {
+    localStorage.setItem('activeModel', selectedModel);
+  }, [selectedModel]);
+
+  useEffect(() => {
+    localStorage.setItem('themeColor', themeColor);
+  }, [themeColor]);
+
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -103,18 +118,12 @@ export default function App() {
     }
   }, [darkMode]);
 
-  useEffect(() => {
-    localStorage.setItem('themeColor', themeColor);
-  }, [themeColor]);
-
-  // --- Actions ---
-
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const plan = await generateStudyPlan(newProject);
+      const plan = await generateStudyPlan(newProject, selectedModel);
       
       const newProj: Project = {
         id: uuidv4(),
@@ -122,50 +131,50 @@ export default function App() {
         pageCount: newProject.pageCount,
         chapterCount: newProject.chapterCount,
         chapters: newProject.chapters.filter(c => c.trim() !== ''),
-        difficulty: Difficulty.MEDIUM,
-        importance: Importance.MEDIUM,
+        difficulty: newProject.difficulty,
+        importance: newProject.importance,
         schedule: newProject.schedule,
-        color: ['indigo', 'emerald', 'rose', 'amber', 'sky'][Math.floor(Math.random() * 5)],
+        color: themeColor,
         createdAt: new Date().toISOString(),
         currentPhase: Phase.EDUCATION,
         progress: 0,
-        tasks: plan.tasks.map(t => ({ ...t, id: uuidv4(), projectId: '' })), // projectId set later
+        tasks: plan.tasks.map(t => ({ ...t, id: uuidv4(), projectId: '' })),
         checkpoints: plan.checkpoints || []
       };
       
-      // Fix projectId
       newProj.tasks = newProj.tasks.map(t => ({ ...t, projectId: newProj.id }));
-
       setProjects([...projects, newProj]);
       setActiveTab('dashboard');
-      setNewProject({ 
-        name: '', 
-        pageCount: 100,
-        chapterCount: 5,
-        chapters: Array(5).fill(''),
-        difficulty: Difficulty.MEDIUM, 
-        importance: Importance.MEDIUM, 
-        schedule: { 
-          isDaily: true, 
-          routine: { startTime: '09:00', endTime: '10:00' },
-          weeklyCustom: {}
-        } 
-      });
-    } catch (error) {
-      console.error("Failed to create project", error);
-      alert("خطا در ایجاد پروژه. لطفا کلید API را بررسی کنید.");
+      resetForm();
+    } catch (error: any) {
+      console.error("Create Project Error:", error);
+      alert("خطا در ایجاد برنامه. لطفاً از اتصال اینترنت خود مطمئن شوید.");
     } finally {
       setLoading(false);
     }
   };
 
+  const resetForm = () => {
+    setNewProject({ 
+      name: '', 
+      pageCount: 100,
+      chapterCount: 5,
+      chapters: Array(5).fill(''),
+      difficulty: Difficulty.MEDIUM, 
+      importance: Importance.MEDIUM, 
+      schedule: { 
+        isDaily: true, 
+        routine: { startTime: '09:00', endTime: '10:00' },
+        weeklyCustom: {}
+      } 
+    });
+  };
+
   const handleChapterCountChange = (count: number) => {
-    const safeCount = Math.max(0, count);
+    const safeCount = Math.max(1, Math.min(count, 50));
     const newChapters = [...newProject.chapters];
     if (safeCount > newChapters.length) {
-      for (let i = newChapters.length; i < safeCount; i++) {
-        newChapters.push('');
-      }
+      for (let i = newChapters.length; i < safeCount; i++) newChapters.push('');
     } else {
       newChapters.splice(safeCount);
     }
@@ -178,226 +187,47 @@ export default function App() {
     setNewProject({ ...newProject, chapters: newChapters });
   };
 
-  const toggleTask = (projectId: string, taskId: string) => {
+  const handleUpdateProjectTasks = (projectId: string, updatedTasks: Task[]) => {
     setProjects(prev => prev.map(p => {
       if (p.id !== projectId) return p;
-      
-      const updatedTasks = p.tasks.map(t => 
-        t.id === taskId ? { ...t, isCompleted: !t.isCompleted } : t
-      );
-      
       const completed = updatedTasks.filter(t => t.isCompleted).length;
-      const progress = Math.round((completed / updatedTasks.length) * 100);
-
+      const progress = updatedTasks.length > 0 ? Math.round((completed / updatedTasks.length) * 100) : 0;
       let phase = Phase.EDUCATION;
       if (progress > 25) phase = Phase.PRACTICE;
       if (progress > 50) phase = Phase.CONSOLIDATION;
       if (progress > 80) phase = Phase.MASTERY;
-
       return { ...p, tasks: updatedTasks, progress, currentPhase: phase };
     }));
   };
+
+  const toggleTask = (projectId: string, taskId: string) => {
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
+    const updatedTasks = project.tasks.map(t => t.id === taskId ? { ...t, isCompleted: !t.isCompleted } : t);
+    handleUpdateProjectTasks(projectId, updatedTasks);
+  };
   
-  const completeCheckpoint = (projectId: string, checkpointId: string) => {
-    setProjects(prev => prev.map(p => {
-      if (p.id !== projectId) return p;
-      return {
-        ...p,
-        checkpoints: p.checkpoints.map(cp => cp.id === checkpointId ? { ...cp, isCompleted: true } : cp)
-      };
-    }));
-  };
-
-  const handleTaskUpdate = (projectId: string, date: Date, type: TaskType | null) => {
-    setProjects(prev => prev.map(p => {
-      if (p.id !== projectId) return p;
-      let updatedTasks = p.tasks.filter(t => !isSameDay(new Date(t.date), date));
-      if (type) {
-        const newTask: Task = {
-          id: uuidv4(),
-          projectId: p.id,
-          date: date.toISOString(),
-          type: type,
-          description: `${TASK_TYPE_LABELS[type]} (دستی)`,
-          isCompleted: false
-        };
-        updatedTasks.push(newTask);
-      }
-      updatedTasks.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      const completed = updatedTasks.filter(t => t.isCompleted).length;
-      const total = updatedTasks.length;
-      const progress = total === 0 ? 0 : Math.round((completed / total) * 100);
-      return { ...p, tasks: updatedTasks, progress };
-    }));
-  };
-
   const handleAnalyzeProject = async (project: Project) => {
     setAnalyzing(true);
     try {
-      const result = await analyzeLearningProgress(project);
+      const result = await analyzeLearningProgress(project, selectedModel);
       setProjects(prev => prev.map(p => p.id === project.id ? { ...p, lastAnalysis: result } : p));
-    } catch (error) {
+    } catch (error: any) {
       console.error("Analysis failed", error);
+      alert("خطا در تحلیل وضعیت. لطفاً دوباره تلاش کنید.");
     } finally {
       setAnalyzing(false);
     }
   };
-
-  // --- Components ---
-
-  const ScheduleSelector = () => {
-    const toggleDay = (idx: number) => {
-      const current = { ...(newProject.schedule.weeklyCustom || {}) };
-      if (current[idx]) {
-        delete current[idx];
-      } else {
-        current[idx] = { startTime: '09:00', endTime: '10:00' };
-      }
-      setNewProject({
-        ...newProject,
-        schedule: { ...newProject.schedule, weeklyCustom: current }
-      });
-    };
-
-    const updateDayTime = (idx: number, field: 'startTime' | 'endTime', value: string) => {
-      const current = { ...(newProject.schedule.weeklyCustom || {}) };
-      if (current[idx]) {
-        current[idx] = { ...current[idx]!, [field]: value };
-        setNewProject({
-          ...newProject,
-          schedule: { ...newProject.schedule, weeklyCustom: current }
-        });
-      }
-    };
-
-    return (
-      <div className="space-y-6 bg-gray-50 dark:bg-gray-700/30 p-6 rounded-2xl border border-gray-100 dark:border-gray-700">
-        <div className="flex items-center justify-between">
-          <label className="text-sm font-bold text-gray-700 dark:text-gray-300">نحوه زمان‌بندی</label>
-          <div className="bg-white dark:bg-gray-800 p-1 rounded-xl border border-gray-200 dark:border-gray-600 flex gap-1">
-            <button 
-              type="button"
-              onClick={() => setNewProject({...newProject, schedule: {...newProject.schedule, isDaily: true}})}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${newProject.schedule.isDaily ? `bg-${themeColor}-600 text-white` : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'}`}
-            >
-              روتین روزانه
-            </button>
-            <button 
-              type="button"
-              onClick={() => setNewProject({...newProject, schedule: {...newProject.schedule, isDaily: false}})}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!newProject.schedule.isDaily ? `bg-${themeColor}-600 text-white` : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'}`}
-            >
-              روزهای خاص
-            </button>
-          </div>
-        </div>
-
-        {newProject.schedule.isDaily ? (
-          <div className="animate-fade-in flex flex-col md:flex-row gap-4 items-center justify-center">
-            <div className="flex-1 w-full">
-              <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 mr-2">شروع</label>
-              {/* Fixed: safely access routine and cast to ensure TypeScript identifies property existence */}
-              <input 
-                type="time" 
-                value={newProject.schedule.routine?.startTime || '09:00'}
-                onChange={e => {
-                  const currentRoutine: TimeRange = newProject.schedule.routine || { startTime: '09:00', endTime: '10:00' };
-                  setNewProject({
-                    ...newProject, 
-                    schedule: {
-                      ...newProject.schedule, 
-                      routine: { ...currentRoutine, startTime: e.target.value }
-                    }
-                  });
-                }}
-                className={`w-full px-4 py-2 rounded-xl bg-white dark:bg-gray-800 dark:text-white border border-gray-200 dark:border-gray-600 focus:border-${themeColor}-500 outline-none`}
-              />
-            </div>
-            <div className="flex-1 w-full">
-              <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 mr-2">پایان</label>
-              {/* Fixed: safely access routine and cast to ensure TypeScript identifies property existence */}
-              <input 
-                type="time" 
-                value={newProject.schedule.routine?.endTime || '10:00'}
-                onChange={e => {
-                  const currentRoutine: TimeRange = newProject.schedule.routine || { startTime: '09:00', endTime: '10:00' };
-                  setNewProject({
-                    ...newProject, 
-                    schedule: {
-                      ...newProject.schedule, 
-                      routine: { ...currentRoutine, endTime: e.target.value }
-                    }
-                  });
-                }}
-                className={`w-full px-4 py-2 rounded-xl bg-white dark:bg-gray-800 dark:text-white border border-gray-200 dark:border-gray-600 focus:border-${themeColor}-500 outline-none`}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="animate-fade-in space-y-4">
-            <div className="flex flex-wrap gap-2 justify-center">
-              {PERSIAN_DAYS.map((day, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => toggleDay(idx)}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold transition-all border-2 ${
-                    newProject.schedule.weeklyCustom?.[idx] 
-                    ? `bg-${themeColor}-600 border-${themeColor}-600 text-white shadow-md shadow-${themeColor}-200 dark:shadow-none` 
-                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500'
-                  }`}
-                >
-                  {day[0]}
-                </button>
-              ))}
-            </div>
-
-            <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
-              {Object.entries(newProject.schedule.weeklyCustom || {}).length === 0 ? (
-                <p className="text-center text-xs text-gray-400 py-4">روزهای مورد نظر خود را برای مطالعه انتخاب کنید.</p>
-              ) : (
-                Object.entries(newProject.schedule.weeklyCustom || {}).map(([idxStr, range]) => {
-                  const idx = parseInt(idxStr);
-                  return (
-                    <div key={idx} className="flex items-center gap-3 bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-100 dark:border-gray-700 animate-fade-in">
-                      <span className="w-16 text-xs font-bold text-gray-600 dark:text-gray-400">{PERSIAN_DAYS[idx]}</span>
-                      <input 
-                        type="time" 
-                        value={range?.startTime}
-                        onChange={e => updateDayTime(idx, 'startTime', e.target.value)}
-                        className="flex-1 px-2 py-1 text-xs bg-gray-50 dark:bg-gray-700 dark:text-white border border-gray-100 dark:border-gray-600 rounded-lg outline-none"
-                      />
-                      <span className="text-gray-300">تا</span>
-                      <input 
-                        type="time" 
-                        value={range?.endTime}
-                        onChange={e => updateDayTime(idx, 'endTime', e.target.value)}
-                        className="flex-1 px-2 py-1 text-xs bg-gray-50 dark:bg-gray-700 dark:text-white border border-gray-100 dark:border-gray-600 rounded-lg outline-none"
-                      />
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // --- Views ---
 
   const renderDashboard = () => (
     <div className="space-y-6 animate-fade-in pb-20 md:pb-0">
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-black text-gray-800 dark:text-white">پروژه‌های مطالعاتی</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">مدیریت یادگیری عمیق و مرور</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">مدیریت هوشمند یادگیری با مربی استاد هوش</p>
         </div>
-        <button 
-          onClick={() => setActiveTab('create')}
-          className={`bg-${themeColor}-600 hover:bg-${themeColor}-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-${themeColor}-200 dark:shadow-none`}
-        >
+        <button onClick={() => setActiveTab('create')} className={`bg-${themeColor}-600 hover:bg-${themeColor}-700 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-${themeColor}-100 dark:shadow-none`}>
           <Plus size={20} />
           <span>پروژه جدید</span>
         </button>
@@ -406,49 +236,31 @@ export default function App() {
       {projects.length === 0 ? (
         <div className="text-center py-20 bg-white dark:bg-gray-800 rounded-3xl border border-dashed border-gray-300 dark:border-gray-700">
           <BrainCircuit className="mx-auto text-gray-300 dark:text-gray-600 mb-4" size={64} />
-          <p className="text-gray-500 dark:text-gray-400">هنوز پروژه‌ای ایجاد نکرده‌اید.</p>
-          <button onClick={() => setActiveTab('create')} className={`text-${themeColor}-600 dark:text-${themeColor}-400 font-bold mt-2 hover:underline`}>
-            اولین پروژه را بسازید
-          </button>
+          <p className="text-gray-500">پروژه‌ای برای نمایش وجود ندارد.</p>
+          <button onClick={() => setActiveTab('create')} className={`text-${themeColor}-600 font-bold mt-2 hover:underline`}>ایجاد اولین پروژه</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map(p => (
-            <div 
-              key={p.id} 
-              onClick={() => setActiveTab(p.id)}
-              className="group bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-700 hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer relative overflow-hidden"
-            >
+            <div key={p.id} onClick={() => setActiveTab(p.id)} className="group bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-100 dark:border-gray-700 hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer relative overflow-hidden">
               <div className={`absolute top-0 right-0 w-1.5 h-full bg-${p.color}-500`} />
-              
               <div className="flex justify-between items-start mb-4">
-                <h3 className={`font-bold text-lg text-gray-800 dark:text-gray-100 group-hover:text-${themeColor}-600 dark:group-hover:text-${themeColor}-400 transition-colors`}>{p.name}</h3>
-                <span className={`px-2 py-1 bg-${p.color}-50 dark:bg-${p.color}-900/30 text-${p.color}-600 dark:text-${p.color}-400 text-xs rounded-lg font-medium`}>
-                  {p.difficulty}
-                </span>
+                <h3 className="font-black text-lg">{p.name}</h3>
+                <span className={`px-2 py-0.5 bg-${p.color}-50 dark:bg-${p.color}-900/30 text-${p.color}-600 text-[10px] rounded-lg font-bold`}>{p.difficulty}</span>
               </div>
-
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
+              <div className="space-y-4">
+                <div className="flex justify-between text-xs text-gray-500">
                   <span>وضعیت یادگیری:</span>
-                  {p.lastAnalysis ? (
-                    <span className="text-gray-800 dark:text-gray-200 font-bold text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-md">
-                      {STATE_LABELS[p.lastAnalysis.learning_state] || p.lastAnalysis.learning_state}
-                    </span>
-                  ) : (
-                    <span className="text-gray-800 dark:text-gray-200 font-medium">{PHASE_LABELS[p.currentPhase]}</span>
-                  )}
+                  <span className="font-bold text-gray-700 dark:text-gray-200">
+                    {p.lastAnalysis ? STATE_LABELS[p.lastAnalysis.learning_state] : PHASE_LABELS[p.currentPhase]}
+                  </span>
                 </div>
-                
                 <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
-                  <div 
-                    className={`bg-${p.color}-500 h-2 rounded-full transition-all duration-500`} 
-                    style={{ width: `${p.progress}%` }}
-                  />
+                  <div className={`bg-${p.color}-500 h-2 rounded-full transition-all duration-700`} style={{ width: `${p.progress}%` }} />
                 </div>
-                <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500">
-                  <span>پیشرفت کمی</span>
-                  <span>{p.progress}٪</span>
+                <div className="flex justify-between text-[10px] text-gray-400">
+                  <span>{p.chapterCount} فصل</span>
+                  <span>{p.progress}% پیشرفت</span>
                 </div>
               </div>
             </div>
@@ -459,129 +271,93 @@ export default function App() {
   );
 
   const renderCreateProject = () => (
-    <div className="max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 animate-fade-in mb-20 md:mb-0">
-      <div className="mb-8 text-center">
-        <div className={`w-16 h-16 bg-${themeColor}-50 dark:bg-${themeColor}-900/30 text-${themeColor}-600 dark:text-${themeColor}-400 rounded-2xl flex items-center justify-center mx-auto mb-4`}>
-          <BrainCircuit size={32} />
+    <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-3xl shadow-sm border p-8 animate-fade-in mb-20 md:mb-0">
+      <div className="mb-10 text-center">
+        <div className={`w-16 h-16 bg-${themeColor}-50 dark:bg-${themeColor}-900/30 text-${themeColor}-600 rounded-2xl flex items-center justify-center mx-auto mb-4`}>
+          <Sparkles size={32} />
         </div>
-        <h2 className="text-2xl font-black text-gray-800 dark:text-white">طراحی مسیر یادگیری هوشمند</h2>
-        <p className="text-gray-500 dark:text-gray-400 mt-2">با سیستم Checkpoint هوشمند و برنامه منعطف</p>
+        <h2 className="text-2xl font-black">تعریف پروژه مطالعاتی جدید</h2>
+        <p className="text-gray-500 text-sm mt-2">مدل‌های هوش مصنوعی بر اساس سرفصل‌های شما برنامه‌ریزی می‌کنند.</p>
       </div>
 
-      <form onSubmit={handleCreateProject} className="space-y-6">
+      <form onSubmit={handleCreateProject} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">نام پروژه مطالعه</label>
-            <input 
-              required
-              type="text" 
-              value={newProject.name}
-              onChange={e => setNewProject({...newProject, name: e.target.value})}
-              className={`w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-700 dark:text-white border border-gray-200 dark:border-gray-600 focus:border-${themeColor}-500 focus:ring-2 focus:ring-${themeColor}-100 dark:focus:ring-${themeColor}-900 outline-none transition-all`}
-              placeholder="مثال: یادگیری React پیشرفته"
-            />
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">عنوان کتاب یا دوره</label>
+            <input required type="text" value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} className={`w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-700 border focus:border-${themeColor}-500 outline-none transition-all dark:text-white`} placeholder="مثال: یادگیری React پیشرفته" />
           </div>
-          
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">تعداد صفحات/حجم</label>
-            <input 
-              required
-              type="number" 
-              min="1"
-              value={newProject.pageCount}
-              onChange={e => setNewProject({...newProject, pageCount: Number(e.target.value)})}
-              className={`w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-700 dark:text-white border border-gray-200 dark:border-gray-600 focus:border-${themeColor}-500 focus:ring-2 focus:ring-${themeColor}-100 dark:focus:ring-${themeColor}-900 outline-none transition-all`}
-            />
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">تعداد کل صفحات</label>
+            <input required type="number" min="1" value={newProject.pageCount} onChange={e => setNewProject({...newProject, pageCount: Number(e.target.value)})} className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-700 border outline-none transition-all dark:text-white" />
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">سختی مطلب</label>
-            <select 
-              value={newProject.difficulty}
-              onChange={e => setNewProject({...newProject, difficulty: e.target.value as Difficulty})}
-              className={`w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-700 dark:text-white border border-gray-200 dark:border-gray-600 focus:border-${themeColor}-500 focus:ring-2 focus:ring-${themeColor}-100 dark:focus:ring-${themeColor}-900 outline-none transition-all`}
-            >
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">سطح دشواری</label>
+            <select value={newProject.difficulty} onChange={e => setNewProject({...newProject, difficulty: e.target.value as Difficulty})} className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-700 border outline-none transition-all dark:text-white">
               {Object.values(Difficulty).map(v => <option key={v} value={v}>{v}</option>)}
             </select>
           </div>
         </div>
 
-        {/* Chapters Section */}
-        <div className="space-y-4 bg-gray-50 dark:bg-gray-700/20 p-6 rounded-2xl border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-4">
+        <div className={`bg-${themeColor}-50/50 dark:bg-${themeColor}-900/10 p-6 rounded-3xl border border-${themeColor}-100 dark:border-${themeColor}-900/30`}>
+          <div className="flex items-center justify-between mb-6">
              <div className="flex items-center gap-2">
-                <ListOrdered className={`text-${themeColor}-500`} size={20} />
-                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">ساختار فصل‌بندی</label>
+                <ListOrdered className={`text-${themeColor}-600`} size={20} />
+                <label className="text-sm font-bold text-gray-700 dark:text-gray-200">تعیین سرفصل‌ها</label>
              </div>
-             <div className="flex items-center gap-2">
-                <span className="text-[10px] text-gray-400 font-bold">تعداد کل فصول:</span>
-                <input 
-                  type="number" 
-                  min="0"
-                  value={newProject.chapterCount}
-                  onChange={e => handleChapterCountChange(Number(e.target.value))}
-                  className="w-16 px-2 py-1 text-center text-xs bg-white dark:bg-gray-800 dark:text-white border border-gray-200 dark:border-gray-600 rounded-lg outline-none"
-                />
+             <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-1 rounded-lg border">
+                <button type="button" onClick={() => handleChapterCountChange(newProject.chapterCount - 1)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-500"><ChevronDown size={14}/></button>
+                <input type="number" readOnly value={newProject.chapterCount} className="w-8 text-center text-xs font-bold bg-transparent outline-none dark:text-white" />
+                <button type="button" onClick={() => handleChapterCountChange(newProject.chapterCount + 1)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-500"><ChevronUp size={14}/></button>
              </div>
           </div>
-          
-          {newProject.chapterCount > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2">
-               {newProject.chapters.map((title, idx) => (
-                 <div key={idx} className="relative">
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-300 pointer-events-none">{idx + 1}</span>
-                    <input 
-                      type="text"
-                      value={title}
-                      placeholder={`عنوان فصل ${idx + 1}`}
-                      onChange={e => handleChapterTitleChange(idx, e.target.value)}
-                      className={`w-full pr-8 pl-3 py-2 text-xs rounded-xl bg-white dark:bg-gray-800 dark:text-white border border-gray-100 dark:border-gray-600 focus:border-${themeColor}-500 outline-none transition-all`}
-                    />
-                 </div>
-               ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-60 overflow-y-auto pr-2">
+             {newProject.chapters.map((title, idx) => (
+               <div key={idx} className="flex items-center gap-2">
+                 <span className="text-[10px] font-bold text-gray-400 w-4">{idx+1}</span>
+                 <input type="text" value={title} placeholder="نام فصل..." onChange={e => handleChapterTitleChange(idx, e.target.value)} className={`flex-1 px-3 py-2 text-xs rounded-lg bg-white dark:bg-gray-800 border outline-none focus:border-${themeColor}-400 transition-all dark:text-white`} />
+               </div>
+             ))}
+          </div>
+        </div>
+
+        <div className="bg-gray-50 dark:bg-gray-700/30 p-6 rounded-3xl border">
+          <div className="flex items-center justify-between mb-4">
+            <label className="text-sm font-bold text-gray-700 dark:text-gray-200">زمان‌بندی مطالعه</label>
+            <div className="flex gap-1 p-1 bg-white dark:bg-gray-800 rounded-xl border">
+              <button type="button" onClick={() => setNewProject({...newProject, schedule: {...newProject.schedule, isDaily: true}})} className={`px-4 py-1.5 rounded-lg text-xs font-bold ${newProject.schedule.isDaily ? `bg-${themeColor}-600 text-white` : 'text-gray-400'}`}>هر روز</button>
+              <button type="button" onClick={() => setNewProject({...newProject, schedule: {...newProject.schedule, isDaily: false}})} className={`px-4 py-1.5 rounded-lg text-xs font-bold ${!newProject.schedule.isDaily ? `bg-${themeColor}-600 text-white` : 'text-gray-400'}`}>روزهای خاص</button>
             </div>
-          ) : (
-            <p className="text-center text-xs text-gray-400 italic">تعیین فصول به هوش مصنوعی در تقسیم‌بندی دقیق‌تر برنامه کمک می‌کند.</p>
+          </div>
+          {newProject.schedule.isDaily && (
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="text-[10px] text-gray-400 block mb-1">زمان شروع</label>
+                <input type="time" value={newProject.schedule.routine?.startTime} onChange={e => setNewProject({...newProject, schedule: {...newProject.schedule, routine: {...(newProject.schedule.routine || {startTime:'09:00', endTime:'10:00'}), startTime: e.target.value}}})} className="w-full p-3 rounded-xl bg-white dark:bg-gray-800 border outline-none dark:text-white" />
+              </div>
+              <div className="flex-1">
+                <label className="text-[10px] text-gray-400 block mb-1">زمان پایان</label>
+                <input type="time" value={newProject.schedule.routine?.endTime} onChange={e => setNewProject({...newProject, schedule: {...newProject.schedule, routine: {...(newProject.schedule.routine || {startTime:'09:00', endTime:'10:00'}), endTime: e.target.value}}})} className="w-full p-3 rounded-xl bg-white dark:bg-gray-800 border outline-none dark:text-white" />
+              </div>
+            </div>
           )}
         </div>
 
-        <ScheduleSelector />
-
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">اهمیت پروژه</label>
+          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">میزان اهمیت پروژه</label>
           <div className="flex flex-wrap gap-2">
             {Object.values(Importance).map(imp => (
-              <button
-                key={imp}
-                type="button"
-                onClick={() => setNewProject({...newProject, importance: imp})}
-                className={`flex-1 min-w-[80px] py-2 rounded-xl text-[11px] font-bold transition-all border ${
-                  newProject.importance === imp 
-                  ? `bg-${themeColor}-50 dark:bg-${themeColor}-900/30 border-${themeColor}-500 text-${themeColor}-600 dark:text-${themeColor}-400` 
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-400'
-                }`}
-              >
+              <button key={imp} type="button" onClick={() => setNewProject({...newProject, importance: imp})} className={`flex-1 min-w-[90px] py-2.5 rounded-xl text-xs font-bold border transition-all ${newProject.importance === imp ? `bg-${themeColor}-600 border-${themeColor}-600 text-white shadow-md` : 'bg-white dark:bg-gray-800 border-gray-200 text-gray-400'}`}>
                 {imp}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="pt-4 flex gap-4">
-          <button 
-            type="button" 
-            onClick={() => setActiveTab('dashboard')}
-            className="flex-1 py-3 px-6 rounded-xl border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            انصراف
-          </button>
-          <button 
-            type="submit" 
-            disabled={loading}
-            className={`flex-1 py-3 px-6 rounded-xl bg-${themeColor}-600 text-white font-bold hover:bg-${themeColor}-700 transition-colors shadow-lg shadow-${themeColor}-200 dark:shadow-none flex justify-center items-center gap-2`}
-          >
+        <div className="flex gap-4 pt-4">
+          <button type="button" onClick={() => setActiveTab('dashboard')} className="flex-1 py-4 px-6 rounded-2xl border font-bold text-gray-500 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700">انصراف</button>
+          <button type="submit" disabled={loading} className={`flex-[2] py-4 px-6 rounded-2xl bg-${themeColor}-600 text-white font-bold flex justify-center items-center gap-2 disabled:opacity-70 shadow-xl shadow-${themeColor}-100 dark:shadow-none transition-all hover:bg-${themeColor}-700`}>
             {loading ? <Loader2 className="animate-spin" /> : <BrainCircuit size={20} />}
-            {loading ? 'در حال طراحی برنامه...' : 'ایجاد برنامه هوشمند'}
+            {loading ? 'در حال طراحی برنامه...' : 'تولید برنامه هوشمند'}
           </button>
         </div>
       </form>
@@ -591,138 +367,37 @@ export default function App() {
   const renderDailyTasks = () => {
     const today = new Date();
     const todaysTasks: { project: Project, task: Task }[] = [];
-    const todaysCheckpoints: { project: Project, checkpoint: Checkpoint }[] = [];
-
-    projects.forEach(p => {
-      // Find tasks
-      p.tasks.forEach(t => {
-        if (isSameDay(new Date(t.date), today)) {
-          todaysTasks.push({ project: p, task: t });
-        }
-      });
-      // Find checkpoints
-      if (p.checkpoints) {
-        const start = new Date(p.createdAt);
-        // Reset time for diff
-        start.setHours(0,0,0,0);
-        const todayReset = new Date(today);
-        todayReset.setHours(0,0,0,0);
-        const diffDays = Math.floor((todayReset.getTime() - start.getTime()) / (1000 * 3600 * 24));
-        
-        p.checkpoints.forEach(cp => {
-           if (cp.day_offset === diffDays && !cp.isCompleted) {
-              todaysCheckpoints.push({ project: p, checkpoint: cp });
-           }
-        });
-      }
-    });
+    projects.forEach(p => p.tasks.forEach(t => { if (isSameDay(new Date(t.date), today)) todaysTasks.push({ project: p, task: t }); }));
 
     return (
       <div className="animate-fade-in max-w-3xl mx-auto pb-20 md:pb-0">
-        <header className="mb-8 text-center">
-          <h1 className="text-2xl font-black text-gray-800 dark:text-white">برنامه امروز</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">{formatPersianDate(today)}</p>
+        <header className="mb-10 text-center">
+          <h1 className="text-3xl font-black text-gray-800 dark:text-white">برنامه امروز شما</h1>
+          <p className="text-gray-500 mt-1">{formatPersianDate(today)}</p>
         </header>
 
-        {todaysTasks.length === 0 && todaysCheckpoints.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center border border-gray-100 dark:border-gray-700 shadow-sm">
-            <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 size={32} />
-            </div>
-            <h3 className="font-bold text-gray-800 dark:text-gray-100 text-lg">تبریک!</h3>
-            <p className="text-gray-500 dark:text-gray-400">برای امروز وظیفه‌ای ندارید.</p>
+        {todaysTasks.length === 0 ? (
+          <div className="bg-white dark:bg-gray-800 rounded-3xl p-12 text-center border shadow-sm border-gray-100 dark:border-gray-700">
+            <CheckCircle2 size={64} className="mx-auto text-emerald-500 mb-6" />
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white">کار تمام است!</h3>
+            <p className="text-gray-500 mt-2">برنامه مطالعه‌ای برای امروز باقی نمانده.</p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {/* Checkpoints Section */}
-            {todaysCheckpoints.length > 0 && (
-               <div className="space-y-3">
-                 <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                   <HelpCircle size={16} /> بررسی وضعیت (Checkpoints)
-                 </h2>
-                 {todaysCheckpoints.map(({ project, checkpoint }) => (
-                   <div key={checkpoint.id} className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
-                      <div className="flex justify-between items-start mb-4">
-                         <div>
-                            <div className="text-xs font-bold opacity-80 mb-1">{project.name}</div>
-                            <h3 className="font-bold text-lg">{checkpoint.purpose === 'diagnostic' ? 'چکاپ تشخیصی' : 'ارزیابی کوتاه'}</h3>
-                         </div>
-                         <div className="bg-white/20 p-2 rounded-lg"><Clock size={16} /></div>
-                      </div>
-                      
-                      <div className="space-y-4">
-                         {checkpoint.questions.map((q, idx) => (
-                           <div key={q.qid} className="bg-white/10 rounded-xl p-3 backdrop-blur-sm border border-white/10">
-                              <p className="text-sm font-medium mb-2">{idx + 1}. {q.text}</p>
-                              {q.answer_type === 'choice' && (
-                                <div className="flex flex-wrap gap-2">
-                                   {q.choices?.map(c => (
-                                     <button key={c.key} className="text-xs bg-white text-indigo-700 px-3 py-1.5 rounded-full font-bold hover:bg-gray-100 transition-colors">
-                                       {c.label}
-                                     </button>
-                                   ))}
-                                </div>
-                              )}
-                              {q.answer_type === 'number' && (
-                                <div className="flex gap-2">
-                                  {[1,2,3,4,5].map(n => (
-                                    <button key={n} className="w-8 h-8 rounded-full bg-white/20 hover:bg-white hover:text-indigo-700 flex items-center justify-center text-sm font-bold transition-all">
-                                      {n}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                           </div>
-                         ))}
-                      </div>
-
-                      <button 
-                        onClick={() => completeCheckpoint(project.id, checkpoint.id)}
-                        className="mt-4 w-full bg-white/20 hover:bg-white/30 text-white font-bold py-2 rounded-xl transition-colors text-sm"
-                      >
-                        ثبت پاسخ‌ها و به‌روزرسانی برنامه
-                      </button>
-                   </div>
-                 ))}
-               </div>
-            )}
-
-            {/* Tasks Section */}
-            {todaysTasks.length > 0 && (
-              <div className="space-y-3">
-                 <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                   <BookOpen size={16} /> وظایف امروز
-                 </h2>
-                {todaysTasks.map(({ project, task }) => (
-                  <div key={task.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4 hover:shadow-md transition-all">
-                    <button 
-                      onClick={() => toggleTask(project.id, task.id)}
-                      className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                        task.isCompleted 
-                        ? `bg-${project.color}-500 text-white` 
-                        : `border-2 border-${project.color}-200 dark:border-${project.color}-800 text-transparent hover:border-${project.color}-500`
-                      }`}
-                    >
-                      <CheckCircle2 size={18} />
-                    </button>
-                    
-                    <div className="flex-grow">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-md bg-${project.color}-50 dark:bg-${project.color}-900/30 text-${project.color}-600 dark:text-${project.color}-400 font-bold`}>
-                          {project.name}
-                        </span>
-                        <span className="text-xs text-gray-400 dark:text-gray-500 border border-gray-100 dark:border-gray-700 px-1.5 rounded">
-                          {TASK_TYPE_LABELS[task.type]}
-                        </span>
-                      </div>
-                      <p className={`font-medium text-gray-800 dark:text-gray-200 ${task.isCompleted ? 'line-through text-gray-400 dark:text-gray-600' : ''}`}>
-                        {task.description}
-                      </p>
-                    </div>
+          <div className="space-y-4">
+            {todaysTasks.map(({ project, task }) => (
+              <div key={task.id} className="bg-white dark:bg-gray-800 p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-5 hover:shadow-md transition-all">
+                <button onClick={() => toggleTask(project.id, task.id)} className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all ${task.isCompleted ? `bg-emerald-500 border-emerald-500 text-white` : `border-gray-200`}`}>
+                  {task.isCompleted && <CheckCircle2 size={20} />}
+                </button>
+                <div className="flex-1">
+                  <div className="flex gap-2 items-center mb-1">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-md bg-${project.color}-50 dark:bg-${project.color}-900/20 text-${project.color}-600 font-bold uppercase`}>{project.name}</span>
+                    <span className="text-[10px] text-gray-400 font-bold">{TASK_TYPE_LABELS[task.type]}</span>
                   </div>
-                ))}
+                  <p className={`font-bold text-gray-800 dark:text-gray-100 ${task.isCompleted ? 'line-through opacity-40' : ''}`}>{task.description}</p>
+                </div>
               </div>
-            )}
+            ))}
           </div>
         )}
       </div>
@@ -732,335 +407,198 @@ export default function App() {
   const renderProjectDetail = (projectId: string) => {
     const project = projects.find(p => p.id === projectId);
     if (!project) return null;
-
     return (
-      <div className="animate-fade-in space-y-6 pb-20 md:pb-0">
-        <button 
-          onClick={() => setActiveTab('dashboard')}
-          className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center gap-1 text-sm mb-2"
-        >
-          <ChevronRight size={16} /> بازگشت به داشبورد
-        </button>
-
-        {/* Header Profile */}
-        <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden">
-          <div className={`absolute top-0 right-0 w-full h-1 bg-${project.color}-500`} />
-          
-          <div className="flex flex-col md:flex-row justify-between md:items-start gap-6">
+      <div className="animate-fade-in space-y-8 pb-20 md:pb-0">
+        <button onClick={() => setActiveTab('dashboard')} className={`text-gray-500 flex items-center gap-1 text-sm font-bold hover:text-${themeColor}-600 transition-colors`}><ChevronRight size={18} /> بازگشت به پروژه‌ها</button>
+        
+        <div className="bg-white dark:bg-gray-800 rounded-3xl p-8 border shadow-sm relative overflow-hidden border-gray-100 dark:border-gray-700">
+          <div className={`absolute top-0 right-0 w-full h-1.5 bg-${project.color}-500`} />
+          <div className="flex flex-col md:flex-row justify-between md:items-center gap-6">
             <div>
-              <h1 className="text-3xl font-black text-gray-800 dark:text-white mb-2">{project.name}</h1>
-              <div className="flex flex-wrap gap-2 text-sm text-gray-500 dark:text-gray-400">
-                <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">سختی: {project.difficulty}</span>
-                <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">اهمیت: {project.importance}</span>
-                <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">{project.pageCount} صفحه</span>
-                <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">{project.chapterCount} فصل</span>
-                <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full flex items-center gap-1">
-                  <Calendar size={14} /> {project.schedule.isDaily ? 'روزانه' : 'روزهای خاص'}
-                </span>
+              <h1 className="text-4xl font-black text-gray-800 dark:text-white mb-4">{project.name}</h1>
+              <div className="flex gap-3 flex-wrap">
+                <span className="bg-gray-50 dark:bg-gray-700 px-4 py-1.5 rounded-xl text-xs font-bold text-gray-600 dark:text-gray-300">📚 {project.chapterCount} فصل</span>
+                <span className="bg-gray-50 dark:bg-gray-700 px-4 py-1.5 rounded-xl text-xs font-bold text-gray-600 dark:text-gray-300">📄 {project.pageCount} صفحه</span>
+                <span className="bg-gray-50 dark:bg-gray-700 px-4 py-1.5 rounded-xl text-xs font-bold text-gray-600 dark:text-gray-300">🔥 {project.importance}</span>
               </div>
             </div>
-
-            <div className="flex items-center gap-6 bg-gray-50 dark:bg-gray-700/50 p-4 rounded-2xl">
-              <div className="text-center">
-                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">فاز فعلی</div>
-                <div className={`font-bold text-${project.color}-600 dark:text-${project.color}-400 text-lg`}>{PHASE_LABELS[project.currentPhase]}</div>
-              </div>
-              <div className="w-px h-8 bg-gray-200 dark:bg-gray-600"></div>
-              <div className="text-center">
-                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">پیشرفت</div>
-                <div className="font-bold text-gray-800 dark:text-white text-lg">{project.progress}٪</div>
-              </div>
+            <div className="flex gap-4">
+              <button onClick={() => handleAnalyzeProject(project)} disabled={analyzing} className={`flex items-center gap-2 bg-${themeColor}-600 text-white px-6 py-3 rounded-2xl text-sm font-black disabled:opacity-50 shadow-lg shadow-${themeColor}-100 dark:shadow-none transition-all hover:bg-${themeColor}-700`}>
+                {analyzing ? <Loader2 className="animate-spin" size={18} /> : <Microscope size={20} />}
+                تحلیل وضعیت با مدل {selectedModel.includes('flash') ? 'Flash' : 'Pro'}
+              </button>
             </div>
-          </div>
-          
-          {/* Analyze Button */}
-          <div className="mt-6 flex justify-end">
-             <button 
-                onClick={() => handleAnalyzeProject(project)}
-                disabled={analyzing}
-                className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 dark:shadow-none transition-all disabled:opacity-50"
-             >
-                {analyzing ? <Loader2 className="animate-spin" size={18} /> : <Microscope size={18} />}
-                <span>{analyzing ? 'در حال آنالیز...' : 'تحلیل وضعیت یادگیری با هوش مصنوعی'}</span>
-             </button>
           </div>
         </div>
 
-        {/* Chapters Glance Card */}
-        {project.chapters.length > 0 && (
-           <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
-              <h3 className="text-xs font-bold text-gray-400 mb-3 flex items-center gap-2">
-                 <ListOrdered size={14} /> سرفصل‌های دوره
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                 {project.chapters.map((ch, i) => (
-                    <span key={i} className="text-[10px] bg-gray-50 dark:bg-gray-700 px-2 py-1 rounded-lg border border-gray-100 dark:border-gray-600 text-gray-600 dark:text-gray-300">
-                       {i+1}. {ch}
-                    </span>
-                 ))}
+        {project.lastAnalysis && (
+           <div className={`bg-gradient-to-br from-${themeColor}-600 to-${themeColor}-800 text-white rounded-3xl p-8 shadow-xl animate-fade-in border border-${themeColor}-400/20`}>
+              <div className="flex items-center gap-2 mb-4">
+                <BrainCircuit size={24} />
+                <h3 className="text-xl font-black">تحلیل مربی هوشمند</h3>
+              </div>
+              <p className="text-sm leading-relaxed mb-6 opacity-90">{project.lastAnalysis.user_feedback}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/10">
+                  <span className="text-[10px] opacity-70 block mb-1 uppercase tracking-tighter">وضعیت یادگیری</span>
+                  <span className="font-bold">{STATE_LABELS[project.lastAnalysis.learning_state]}</span>
+                </div>
+                <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/10">
+                  <span className="text-[10px] opacity-70 block mb-1 uppercase tracking-tighter">اقدام پیشنهادی</span>
+                  <span className="font-bold">{TASK_TYPE_LABELS[project.lastAnalysis.next_action]}</span>
+                </div>
+                <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/10">
+                  <span className="text-[10px] opacity-70 block mb-1 uppercase tracking-tighter">پیش‌بینی تسلط</span>
+                  <span className="font-bold">{project.lastAnalysis.future_projection}</span>
+                </div>
+                <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/10">
+                  <span className="text-[10px] opacity-70 block mb-1 uppercase tracking-tighter">درجه عمق</span>
+                  <span className="font-bold">{project.lastAnalysis.estimated_dou}%</span>
+                </div>
               </div>
            </div>
         )}
 
-        {/* AI Insight Card */}
-        {project.lastAnalysis && (
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden animate-fade-in border border-gray-700">
-             <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-             
-             {/* Illusion Warning */}
-             {project.lastAnalysis.illusion_of_competence.detected && (
-               <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-3 mb-4 flex items-start gap-3">
-                 <AlertTriangle className="text-red-400 flex-shrink-0" size={20} />
-                 <div>
-                   <h4 className="font-bold text-red-200 text-sm">هشدار توهم یادگیری</h4>
-                   <p className="text-xs text-red-100/80 mt-1">{project.lastAnalysis.illusion_of_competence.reason}</p>
-                   {project.lastAnalysis.illusion_of_competence.corrective_action && (
-                     <div className="mt-2 text-xs bg-red-900/50 px-2 py-1 rounded inline-block text-red-200">
-                       راهکار: {project.lastAnalysis.illusion_of_competence.corrective_action}
-                     </div>
-                   )}
-                 </div>
-               </div>
-             )}
-
-             <div className="flex flex-col md:flex-row gap-6 relative z-10">
-               <div className="flex-1">
-                 <div className="flex items-center gap-2 mb-2">
-                   <Sparkles className="text-yellow-400" size={18} />
-                   <h3 className="font-bold text-lg">تحلیل مربی هوشمند</h3>
-                 </div>
-                 <p className="text-gray-300 text-sm leading-relaxed mb-4 text-justify">
-                   {project.lastAnalysis.user_feedback}
-                 </p>
-                 <div className="flex gap-2">
-                   <div className="bg-white/10 px-3 py-1.5 rounded-lg text-xs backdrop-blur-sm border border-white/10">
-                      <span className="opacity-70">وضعیت:</span> <span className="font-bold text-emerald-300">{STATE_LABELS[project.lastAnalysis.learning_state] || project.lastAnalysis.learning_state}</span>
-                   </div>
-                   <div className="bg-white/10 px-3 py-1.5 rounded-lg text-xs backdrop-blur-sm border border-white/10">
-                      <span className="opacity-70">پیش‌بینی تسلط:</span> <span className="font-bold text-sky-300">{project.lastAnalysis.future_projection}</span>
-                   </div>
-                 </div>
-               </div>
-               
-               <div className="md:w-1/3 bg-white/5 rounded-2xl p-4 border border-white/10 flex flex-col justify-center items-center text-center">
-                  <div className="text-xs text-gray-400 mb-2">اقدام پیشنهادی بعدی</div>
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 bg-gradient-to-br from-${project.color}-400 to-${project.color}-600`}>
-                    <Zap size={24} className="text-white" />
-                  </div>
-                  <div className="font-black text-xl mb-1">{TASK_TYPE_LABELS[project.lastAnalysis.next_action]}</div>
-                  <div className="text-[10px] text-gray-400 bg-black/20 px-2 py-1 rounded-full">
-                    {project.lastAnalysis.scheduling_recommendation}
-                  </div>
-               </div>
-             </div>
-          </div>
-        )}
-
-        {/* Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Calendar Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <PersianCalendar 
               project={project} 
-              onTaskUpdate={(date, type) => handleTaskUpdate(project.id, date, type)}
+              onTasksChange={(updatedTasks) => handleUpdateProjectTasks(project.id, updatedTasks)}
             />
-          </div>
 
-          {/* Upcoming Stats/Info */}
-          <div className="space-y-6">
-            <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-               <h3 className="font-bold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
-                 <TrendingUp size={18} className={`text-${themeColor}-500`} />
-                 آمار وظایف
-               </h3>
-               <div className="space-y-4">
-                 <div className="flex justify-between text-sm">
-                    <span className="text-gray-500 dark:text-gray-400">کل وظایف</span>
-                    <span className="font-bold dark:text-white">{project.tasks.length}</span>
-                 </div>
-                 <div className="flex justify-between text-sm">
-                    <span className="text-gray-500 dark:text-gray-400">انجام شده</span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400">{project.tasks.filter(t => t.isCompleted).length}</span>
-                 </div>
-                 <div className="flex justify-between text-sm">
-                    <span className="text-gray-500 dark:text-gray-400">باقی مانده</span>
-                    <span className="font-bold text-gray-800 dark:text-gray-200">{project.tasks.filter(t => !t.isCompleted).length}</span>
-                 </div>
+            {/* Color Legend - RESTORED */}
+            <div className="mt-6 bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700">
+               <div className="flex items-center gap-2 mb-4 text-gray-500 dark:text-gray-400">
+                  <Info size={16} />
+                  <span className="text-xs font-bold uppercase tracking-widest">راهنمای رنگ‌های برنامه</span>
+               </div>
+               <div className="flex flex-wrap gap-4">
+                  {[
+                    { color: 'indigo', label: 'مطالعه اصلی' },
+                    { color: 'amber', label: 'مرور مطالب' },
+                    { color: 'rose', label: 'آزمون و تست' },
+                    { color: 'emerald', label: 'تمرین عملی' },
+                    { color: 'sky', label: 'تدریس به دیگران' },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full bg-${item.color}-500 shadow-[0_0_8px] shadow-${item.color}-500/30`} />
+                      <span className="text-xs font-bold text-gray-600 dark:text-gray-300">{item.label}</span>
+                    </div>
+                  ))}
                </div>
             </div>
-            
-            {!project.lastAnalysis && (
-               <div className={`bg-${themeColor}-600 p-5 rounded-2xl shadow-lg shadow-${themeColor}-200 dark:shadow-none text-white`}>
-                  <h3 className="font-bold mb-2 flex items-center gap-2">
-                    <GraduationCap size={20} />
-                    نکته آموزشی
-                  </h3>
-                  <p className="text-sm opacity-90 leading-relaxed">
-                    برای دریافت تحلیل دقیق از وضعیت یادگیری خود و تشخیص نقاط ضعف احتمالی، روی دکمه "تحلیل وضعیت" در بالای صفحه کلیک کنید.
-                  </p>
-               </div>
-            )}
+          </div>
+          
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl border shadow-sm border-gray-100 dark:border-gray-700">
+              <h3 className={`font-black mb-6 flex items-center gap-2 text-${themeColor}-600 dark:text-${themeColor}-400`}><TrendingUp size={22} /> پیشرفت پروژه</h3>
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between text-xs mb-2 text-gray-500 dark:text-gray-400"><span>پیشرفت مطالعه</span><span className="font-black text-gray-800 dark:text-white">{project.progress}%</span></div>
+                  <div className="w-full bg-gray-100 dark:bg-gray-700 h-3 rounded-full overflow-hidden">
+                    <div className={`bg-${project.color}-500 h-3 rounded-full transition-all duration-500`} style={{ width: `${project.progress}%` }} />
+                  </div>
+                </div>
+                <div className={`flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border border-gray-100 dark:border-gray-600`}>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">فاز فعلی:</span>
+                  <span className={`font-black text-${themeColor}-600 dark:text-${themeColor}-400`}>{PHASE_LABELS[project.currentPhase]}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     );
   };
 
-  const renderSettingsModal = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowSettings(false)}>
-      <div className="bg-white dark:bg-gray-800 w-11/12 max-w-sm rounded-3xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-         <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-              <Settings className={`text-${themeColor}-600`} /> تنظیمات ظاهر
-            </h3>
-            <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
-              <Settings size={20} className="text-gray-500 dark:text-gray-400" />
-            </button>
-         </div>
-
-         <div className="space-y-6">
-            {/* Dark Mode Toggle */}
-            <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-2xl">
-               <div className="flex items-center gap-3">
-                  {darkMode ? <Moon size={24} className="text-indigo-400" /> : <Sun size={24} className="text-amber-500" />}
-                  <div>
-                    <div className="font-bold text-gray-800 dark:text-white">حالت شب</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{darkMode ? 'فعال' : 'غیرفعال'}</div>
-                  </div>
-               </div>
-               <button 
-                onClick={() => setDarkMode(!darkMode)}
-                className={`w-12 h-7 rounded-full transition-all flex items-center p-1 ${darkMode ? `bg-${themeColor}-600` : 'bg-gray-300'}`}
-               >
-                 <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-all transform ${darkMode ? '-translate-x-5' : 'translate-x-0'}`} />
-               </button>
-            </div>
-
-            {/* Theme Color Picker */}
-            <div>
-              <div className="flex items-center gap-2 mb-3 text-sm font-bold text-gray-700 dark:text-gray-300">
-                <Palette size={18} />
-                رنگ اصلی برنامه
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                 {THEME_COLORS.map(color => (
-                   <button
-                     key={color.id}
-                     onClick={() => setThemeColor(color.id)}
-                     className={`flex items-center gap-2 p-2 rounded-xl border-2 transition-all ${
-                       themeColor === color.id 
-                       ? `border-${color.id}-500 bg-${color.id}-50 dark:bg-${color.id}-900/30 text-${color.id}-700 dark:text-${color.id}-300` 
-                       : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'
-                     }`}
-                   >
-                     <div className={`w-4 h-4 rounded-full bg-${color.class}-500`}></div>
-                     <span className="text-xs font-bold">{color.name}</span>
-                   </button>
-                 ))}
-              </div>
-            </div>
-         </div>
-      </div>
-    </div>
-  );
-
   return (
-    <div className={`flex h-screen bg-[#f8fafc] dark:bg-gray-900 overflow-hidden font-['Vazirmatn'] transition-colors duration-300`}>
-      
+    <div className="flex h-screen bg-[#f8fafc] dark:bg-gray-900 overflow-hidden font-['Vazirmatn'] text-gray-800 dark:text-gray-100">
       {/* Sidebar */}
-      <aside className="hidden md:flex flex-col w-20 lg:w-64 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 h-full transition-all">
-        <div className="p-6 flex items-center gap-3">
-          <div className={`w-10 h-10 bg-${themeColor}-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-${themeColor}-200 dark:shadow-none`}>
-            <BookOpen size={24} />
-          </div>
-          <span className="text-xl font-black text-gray-800 dark:text-white hidden lg:block">استاد هوش</span>
+      <aside className="hidden md:flex flex-col w-72 bg-white dark:bg-gray-800 border-l p-8 transition-all duration-300">
+        <div className="flex items-center gap-4 mb-12">
+          <div className={`w-12 h-12 bg-${themeColor}-600 rounded-2xl flex items-center justify-center text-white shadow-xl`}><BookOpen size={28} /></div>
+          <span className="text-2xl font-black text-gray-800 dark:text-white">استاد هوش</span>
         </div>
-
-        <nav className="flex-1 px-4 space-y-2 mt-4">
-          <button 
-            onClick={() => setActiveTab('dashboard')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'dashboard' ? `bg-${themeColor}-50 dark:bg-${themeColor}-900/20 text-${themeColor}-700 dark:text-${themeColor}-400 font-bold` : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-          >
-            <LayoutDashboard size={20} />
-            <span className="hidden lg:block">داشبورد</span>
-          </button>
-          
-          <button 
-            onClick={() => setActiveTab('daily')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'daily' ? `bg-${themeColor}-50 dark:bg-${themeColor}-900/20 text-${themeColor}-700 dark:text-${themeColor}-400 font-bold` : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-          >
-            <CalendarDays size={20} />
-            <span className="hidden lg:block">برنامه روزانه</span>
-          </button>
-
-          <button 
-            onClick={() => setShowSettings(true)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700`}
-          >
-            <Settings size={20} />
-            <span className="hidden lg:block">تنظیمات ظاهر</span>
-          </button>
+        <nav className="flex-1 space-y-3">
+          <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all ${activeTab === 'dashboard' ? `bg-${themeColor}-50 dark:bg-${themeColor}-900/20 text-${themeColor}-700 dark:text-${themeColor}-300 font-black shadow-sm` : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}><LayoutDashboard size={22}/> داشبورد</button>
+          <button onClick={() => setActiveTab('daily')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all ${activeTab === 'daily' ? `bg-${themeColor}-50 dark:bg-${themeColor}-900/20 text-${themeColor}-700 dark:text-${themeColor}-300 font-black shadow-sm` : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}><CalendarDays size={22}/> برنامه امروز</button>
+          <button onClick={() => setShowSettings(true)} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"><Settings size={22}/> تنظیمات</button>
         </nav>
-
-        <div className="p-4 border-t border-gray-100 dark:border-gray-700">
-           <div className="hidden lg:flex items-center gap-3 px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-             <div className={`w-8 h-8 rounded-full bg-${themeColor}-100 dark:bg-${themeColor}-900 flex items-center justify-center text-${themeColor}-600 dark:text-${themeColor}-400 font-bold`}>
-               M
-             </div>
-             <div className="text-sm">
-               <div className="font-bold text-gray-700 dark:text-gray-200">کاربر فعال</div>
-               <div className="text-xs text-gray-400 dark:text-gray-500">نسخه آزمایشی</div>
-             </div>
-           </div>
-        </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 h-full overflow-y-auto overflow-x-hidden p-4 md:p-8">
-        
-        {/* Mobile Header */}
-        <div className="md:hidden flex justify-between items-center mb-6">
-           <div className="flex items-center gap-2 font-black text-gray-800 dark:text-white text-lg">
-             <BookOpen className={`text-${themeColor}-600`} />
-             استاد هوش
-           </div>
-           <div className="flex gap-2">
-             <button onClick={() => setShowSettings(true)} className="p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300"><Settings size={20}/></button>
-           </div>
-        </div>
-        
-        {/* Bottom Nav for Mobile */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-3 z-40 flex justify-around">
-           <button onClick={() => setActiveTab('dashboard')} className={`p-2 rounded-xl ${activeTab === 'dashboard' ? `text-${themeColor}-600 bg-${themeColor}-50 dark:bg-${themeColor}-900/20` : 'text-gray-400'}`}>
-              <LayoutDashboard />
-           </button>
-           <button onClick={() => setActiveTab('create')} className={`p-2 rounded-xl ${activeTab === 'create' ? `text-${themeColor}-600 bg-${themeColor}-50 dark:bg-${themeColor}-900/20` : 'text-gray-400'}`}>
-              <Plus />
-           </button>
-           <button onClick={() => setActiveTab('daily')} className={`p-2 rounded-xl ${activeTab === 'daily' ? `text-${themeColor}-600 bg-${themeColor}-50 dark:bg-${themeColor}-900/20` : 'text-gray-400'}`}>
-              <CalendarDays />
-           </button>
-        </div>
-
+      <main className="flex-1 overflow-y-auto p-4 md:p-10 scroll-smooth">
         {activeTab === 'dashboard' && renderDashboard()}
         {activeTab === 'create' && renderCreateProject()}
         {activeTab === 'daily' && renderDailyTasks()}
-        {typeof activeTab === 'string' && activeTab !== 'dashboard' && activeTab !== 'create' && activeTab !== 'daily' && renderProjectDetail(activeTab)}
+        {typeof activeTab === 'string' && !['dashboard', 'create', 'daily'].includes(activeTab) && renderProjectDetail(activeTab)}
 
-        {showSettings && renderSettingsModal()}
-
+        {/* Bottom Nav for Mobile */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t dark:border-gray-700 p-3 flex justify-around items-center z-50">
+            <button onClick={() => setActiveTab('dashboard')} className={`p-2 rounded-xl transition-all ${activeTab === 'dashboard' ? `bg-${themeColor}-50 text-${themeColor}-600` : 'text-gray-400'}`}><LayoutDashboard size={24}/></button>
+            <button onClick={() => setActiveTab('create')} className={`bg-${themeColor}-600 text-white p-3 rounded-full shadow-lg shadow-${themeColor}-200 -mt-8 border-4 border-white dark:border-gray-800`}><Plus size={28}/></button>
+            <button onClick={() => setActiveTab('daily')} className={`p-2 rounded-xl transition-all ${activeTab === 'daily' ? `bg-${themeColor}-50 text-${themeColor}-600` : 'text-gray-400'}`}><CalendarDays size={24}/></button>
+        </div>
       </main>
 
-      {/* Global Style overrides */}
-      <style>{`
-        .animate-fade-in {
-          animation: fadeIn 0.3s ease-out;
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowSettings(false)}>
+          <div className="bg-white dark:bg-gray-800 w-full max-sm:w-full max-w-md p-8 rounded-3xl shadow-2xl animate-fade-in relative" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-xl font-black dark:text-white">تنظیمات ظاهر</h3>
+              <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-500"><Plus className="rotate-45" size={24}/></button>
+            </div>
+            
+            <div className="space-y-6">
+              {/* Dark Mode Toggle */}
+              <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border dark:border-gray-600">
+                <span className="font-bold dark:text-gray-200">حالت شب</span>
+                <button onClick={() => setDarkMode(!darkMode)} className={`p-2 rounded-xl transition-all ${darkMode ? `bg-${themeColor}-600 text-white shadow-lg shadow-${themeColor}-200` : 'bg-white text-amber-500 shadow-sm'}`}>
+                  {darkMode ? <Moon size={20}/> : <Sun size={20}/>}
+                </button>
+              </div>
+
+              {/* Theme Color Selection */}
+              <div className="space-y-3">
+                <span className="text-sm font-bold block dark:text-gray-300">انتخاب رنگ پوسته</span>
+                <div className="flex flex-wrap gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border dark:border-gray-600">
+                  {THEME_COLORS.map((color) => (
+                    <button
+                      key={color.name}
+                      onClick={() => setThemeColor(color.name)}
+                      title={color.label}
+                      className={`w-10 h-10 rounded-full ${color.class} flex items-center justify-center transition-all ${themeColor === color.name ? 'ring-4 ring-offset-2 ring-gray-300 dark:ring-gray-500 scale-110' : 'hover:scale-105'}`}
+                    >
+                      {themeColor === color.name && <Check size={18} className="text-white" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <span className="text-sm font-bold block dark:text-gray-300">انتخاب مدل هوش مصنوعی</span>
+                <div className="grid grid-cols-2 gap-2 p-1.5 bg-gray-100 dark:bg-gray-700 rounded-2xl border dark:border-gray-600">
+                  <button 
+                    onClick={() => setSelectedModel('gemini-3-flash-preview')}
+                    className={`flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all ${selectedModel === 'gemini-3-flash-preview' ? `bg-white dark:bg-gray-600 shadow-sm text-${themeColor}-600 dark:text-${themeColor}-400` : 'text-gray-500'}`}
+                  >
+                    <Zap size={14} />
+                    Gemini Flash
+                  </button>
+                  <button 
+                    onClick={() => setSelectedModel('gemini-3-pro-preview')}
+                    className={`flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all ${selectedModel === 'gemini-3-pro-preview' ? `bg-white dark:bg-gray-600 shadow-sm text-${themeColor}-600 dark:text-${themeColor}-400` : 'text-gray-500'}`}
+                  >
+                    <Cpu size={14} />
+                    Gemini Pro
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
