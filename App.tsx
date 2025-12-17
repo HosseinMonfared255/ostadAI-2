@@ -81,6 +81,9 @@ export default function App() {
   // Model State
   const [selectedModel, setSelectedModel] = useState<string>(() => localStorage.getItem('activeModel') || 'gemini-3-flash-preview');
 
+  // API Key State
+  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('gemini_api_key') || '');
+
   // Create Project Form State
   const [newProject, setNewProject] = useState<CreateProjectInput>({
     name: '',
@@ -109,6 +112,10 @@ export default function App() {
   }, [themeColor]);
 
   useEffect(() => {
+    localStorage.setItem('gemini_api_key', apiKey);
+  }, [apiKey]);
+
+  useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
       localStorage.setItem('themeMode', 'dark');
@@ -123,7 +130,7 @@ export default function App() {
     setLoading(true);
 
     try {
-      const plan = await generateStudyPlan(newProject, selectedModel);
+      const plan = await generateStudyPlan(newProject, selectedModel, apiKey);
       
       const newProj: Project = {
         id: uuidv4(),
@@ -148,7 +155,7 @@ export default function App() {
       resetForm();
     } catch (error: any) {
       console.error("Create Project Error:", error);
-      alert(`خطا در ایجاد برنامه:\n${error.message || JSON.stringify(error)}\n\nنکته: اگر روی Vercel هستید، مطمئن شوید متغیر API_KEY را در تنظیمات پروژه وارد کرده‌اید.`);
+      alert(`خطا در ایجاد برنامه:\n${error.message || JSON.stringify(error)}\n\nنکته: لطفاً مطمئن شوید API Key را در تنظیمات وارد کرده‌اید.`);
     } finally {
       setLoading(false);
     }
@@ -210,7 +217,7 @@ export default function App() {
   const handleAnalyzeProject = async (project: Project) => {
     setAnalyzing(true);
     try {
-      const result = await analyzeLearningProgress(project, selectedModel);
+      const result = await analyzeLearningProgress(project, selectedModel, apiKey);
       setProjects(prev => prev.map(p => p.id === project.id ? { ...p, lastAnalysis: result } : p));
     } catch (error: any) {
       console.error("Analysis failed", error);
@@ -617,11 +624,33 @@ export default function App() {
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm sm:p-4" onClick={() => setShowSettings(false)}>
           <div className="bg-white dark:bg-gray-800 w-full sm:max-w-md p-6 sm:p-8 rounded-t-[2rem] sm:rounded-3xl shadow-2xl animate-slide-up sm:animate-scale-in relative" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-8">
-              <h3 className="text-xl font-black dark:text-white">تنظیمات ظاهر</h3>
+              <h3 className="text-xl font-black dark:text-white">تنظیمات برنامه</h3>
               <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-500"><Plus className="rotate-45" size={24}/></button>
             </div>
             
-            <div className="space-y-6 pb-6 sm:pb-0">
+            <div className="space-y-6 pb-6 sm:pb-0 h-[60vh] sm:h-auto overflow-y-auto">
+              
+              {/* API Key Input */}
+              <div className="space-y-3">
+                <span className="text-sm font-bold block dark:text-gray-300">کلید API گوگل (Gemini)</span>
+                <div className="relative">
+                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                      <Key size={18} />
+                   </div>
+                   <input 
+                     type="password" 
+                     value={apiKey} 
+                     onChange={(e) => setApiKey(e.target.value)}
+                     placeholder="کلید API خود را اینجا وارد کنید..."
+                     className="w-full pr-10 pl-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 outline-none focus:border-indigo-500 transition-all dark:text-white text-sm ltr-input text-left"
+                     style={{ direction: 'ltr' }}
+                   />
+                </div>
+                <p className="text-[10px] text-gray-400">
+                  برای دریافت کلید رایگان به <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">Google AI Studio</a> مراجعه کنید.
+                </p>
+              </div>
+
               {/* Dark Mode Toggle */}
               <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border dark:border-gray-600">
                 <span className="font-bold dark:text-gray-200">حالت شب</span>

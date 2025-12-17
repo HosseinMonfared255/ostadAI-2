@@ -14,9 +14,16 @@ const addDays = (date: Date, days: number): string => {
  */
 export const generateStudyPlan = async (
   input: CreateProjectInput, 
-  modelName: string = 'gemini-3-flash-preview'
+  modelName: string = 'gemini-3-flash-preview',
+  apiKey?: string
 ): Promise<{ tasks: any[], checkpoints: Checkpoint[] }> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const effectiveApiKey = apiKey || process.env.API_KEY;
+  
+  if (!effectiveApiKey) {
+    throw new Error("API Key تنظیم نشده است. لطفاً در بخش تنظیمات، کلید API خود را وارد کنید.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
 
   const scheduleInfo = input.schedule.isDaily 
     ? `Daily Routine: ${input.schedule.routine?.startTime} to ${input.schedule.routine?.endTime}`
@@ -147,9 +154,16 @@ export const generateStudyPlan = async (
  */
 export const analyzeLearningProgress = async (
   project: Project, 
-  modelName: string = 'gemini-3-flash-preview'
+  modelName: string = 'gemini-3-flash-preview',
+  apiKey?: string
 ): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const effectiveApiKey = apiKey || process.env.API_KEY;
+
+  if (!effectiveApiKey) {
+    throw new Error("API Key تنظیم نشده است. لطفاً در بخش تنظیمات، کلید API خود را وارد کنید.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
 
   const completedTasks = project.tasks.filter(t => t.isCompleted);
   const activityLogs = completedTasks.map(t => ({ type: t.type, date: t.date, desc: t.description }));
