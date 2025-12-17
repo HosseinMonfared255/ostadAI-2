@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, 
@@ -14,7 +15,16 @@ import {
   Settings,
   Moon,
   Sun,
-  Palette
+  Palette,
+  Sparkles,
+  AlertTriangle,
+  Zap,
+  Microscope,
+  HelpCircle,
+  Clock,
+  Calendar,
+  Check,
+  ListOrdered
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -26,9 +36,14 @@ import {
   TaskType, 
   Phase, 
   TASK_TYPE_LABELS,
-  PHASE_LABELS
+  PHASE_LABELS,
+  STATE_LABELS,
+  AnalysisResult,
+  Checkpoint,
+  PERSIAN_DAYS,
+  TimeRange
 } from './types';
-import { generateStudyPlan } from './services/geminiService';
+import { generateStudyPlan, analyzeLearningProgress } from './services/geminiService';
 import { formatPersianDate, isSameDay } from './utils/dateUtils';
 import { PersianCalendar } from './components/PersianCalendar';
 
@@ -51,6 +66,7 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>(loadProjects);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'daily' | 'create' | string>('dashboard');
   const [loading, setLoading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   
   // Theme State
@@ -61,8 +77,15 @@ export default function App() {
   const [newProject, setNewProject] = useState<CreateProjectInput>({
     name: '',
     pageCount: 100,
+    chapterCount: 5,
+    chapters: Array(5).fill(''),
     difficulty: Difficulty.MEDIUM,
-    importance: Importance.MEDIUM
+    importance: Importance.MEDIUM,
+    schedule: {
+      isDaily: true,
+      routine: { startTime: '09:00', endTime: '10:00' },
+      weeklyCustom: {}
+    }
   });
 
   useEffect(() => {
@@ -97,24 +120,62 @@ export default function App() {
         id: uuidv4(),
         name: newProject.name,
         pageCount: newProject.pageCount,
-        difficulty: newProject.difficulty,
-        importance: newProject.importance,
+        chapterCount: newProject.chapterCount,
+        chapters: newProject.chapters.filter(c => c.trim() !== ''),
+        difficulty: Difficulty.MEDIUM,
+        importance: Importance.MEDIUM,
+        schedule: newProject.schedule,
         color: ['indigo', 'emerald', 'rose', 'amber', 'sky'][Math.floor(Math.random() * 5)],
         createdAt: new Date().toISOString(),
         currentPhase: Phase.EDUCATION,
         progress: 0,
-        tasks: plan.tasks.map(t => ({ ...t, id: uuidv4() }))
+        tasks: plan.tasks.map(t => ({ ...t, id: uuidv4(), projectId: '' })), // projectId set later
+        checkpoints: plan.checkpoints || []
       };
+      
+      // Fix projectId
+      newProj.tasks = newProj.tasks.map(t => ({ ...t, projectId: newProj.id }));
 
       setProjects([...projects, newProj]);
       setActiveTab('dashboard');
-      setNewProject({ name: '', pageCount: 100, difficulty: Difficulty.MEDIUM, importance: Importance.MEDIUM });
+      setNewProject({ 
+        name: '', 
+        pageCount: 100,
+        chapterCount: 5,
+        chapters: Array(5).fill(''),
+        difficulty: Difficulty.MEDIUM, 
+        importance: Importance.MEDIUM, 
+        schedule: { 
+          isDaily: true, 
+          routine: { startTime: '09:00', endTime: '10:00' },
+          weeklyCustom: {}
+        } 
+      });
     } catch (error) {
       console.error("Failed to create project", error);
       alert("خطا در ایجاد پروژه. لطفا کلید API را بررسی کنید.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleChapterCountChange = (count: number) => {
+    const safeCount = Math.max(0, count);
+    const newChapters = [...newProject.chapters];
+    if (safeCount > newChapters.length) {
+      for (let i = newChapters.length; i < safeCount; i++) {
+        newChapters.push('');
+      }
+    } else {
+      newChapters.splice(safeCount);
+    }
+    setNewProject({ ...newProject, chapterCount: safeCount, chapters: newChapters });
+  };
+
+  const handleChapterTitleChange = (idx: number, title: string) => {
+    const newChapters = [...newProject.chapters];
+    newChapters[idx] = title;
+    setNewProject({ ...newProject, chapters: newChapters });
   };
 
   const toggleTask = (projectId: string, taskId: string) => {
@@ -125,7 +186,6 @@ export default function App() {
         t.id === taskId ? { ...t, isCompleted: !t.isCompleted } : t
       );
       
-      // Recalculate progress
       const completed = updatedTasks.filter(t => t.isCompleted).length;
       const progress = Math.round((completed / updatedTasks.length) * 100);
 
@@ -135,6 +195,16 @@ export default function App() {
       if (progress > 80) phase = Phase.MASTERY;
 
       return { ...p, tasks: updatedTasks, progress, currentPhase: phase };
+    }));
+  };
+  
+  const completeCheckpoint = (projectId: string, checkpointId: string) => {
+    setProjects(prev => prev.map(p => {
+      if (p.id !== projectId) return p;
+      return {
+        ...p,
+        checkpoints: p.checkpoints.map(cp => cp.id === checkpointId ? { ...cp, isCompleted: true } : cp)
+      };
     }));
   };
 
@@ -159,6 +229,160 @@ export default function App() {
       const progress = total === 0 ? 0 : Math.round((completed / total) * 100);
       return { ...p, tasks: updatedTasks, progress };
     }));
+  };
+
+  const handleAnalyzeProject = async (project: Project) => {
+    setAnalyzing(true);
+    try {
+      const result = await analyzeLearningProgress(project);
+      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, lastAnalysis: result } : p));
+    } catch (error) {
+      console.error("Analysis failed", error);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  // --- Components ---
+
+  const ScheduleSelector = () => {
+    const toggleDay = (idx: number) => {
+      const current = { ...(newProject.schedule.weeklyCustom || {}) };
+      if (current[idx]) {
+        delete current[idx];
+      } else {
+        current[idx] = { startTime: '09:00', endTime: '10:00' };
+      }
+      setNewProject({
+        ...newProject,
+        schedule: { ...newProject.schedule, weeklyCustom: current }
+      });
+    };
+
+    const updateDayTime = (idx: number, field: 'startTime' | 'endTime', value: string) => {
+      const current = { ...(newProject.schedule.weeklyCustom || {}) };
+      if (current[idx]) {
+        current[idx] = { ...current[idx]!, [field]: value };
+        setNewProject({
+          ...newProject,
+          schedule: { ...newProject.schedule, weeklyCustom: current }
+        });
+      }
+    };
+
+    return (
+      <div className="space-y-6 bg-gray-50 dark:bg-gray-700/30 p-6 rounded-2xl border border-gray-100 dark:border-gray-700">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-bold text-gray-700 dark:text-gray-300">نحوه زمان‌بندی</label>
+          <div className="bg-white dark:bg-gray-800 p-1 rounded-xl border border-gray-200 dark:border-gray-600 flex gap-1">
+            <button 
+              type="button"
+              onClick={() => setNewProject({...newProject, schedule: {...newProject.schedule, isDaily: true}})}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${newProject.schedule.isDaily ? `bg-${themeColor}-600 text-white` : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'}`}
+            >
+              روتین روزانه
+            </button>
+            <button 
+              type="button"
+              onClick={() => setNewProject({...newProject, schedule: {...newProject.schedule, isDaily: false}})}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!newProject.schedule.isDaily ? `bg-${themeColor}-600 text-white` : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'}`}
+            >
+              روزهای خاص
+            </button>
+          </div>
+        </div>
+
+        {newProject.schedule.isDaily ? (
+          <div className="animate-fade-in flex flex-col md:flex-row gap-4 items-center justify-center">
+            <div className="flex-1 w-full">
+              <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 mr-2">شروع</label>
+              {/* Fixed: safely access routine and cast to ensure TypeScript identifies property existence */}
+              <input 
+                type="time" 
+                value={newProject.schedule.routine?.startTime || '09:00'}
+                onChange={e => {
+                  const currentRoutine: TimeRange = newProject.schedule.routine || { startTime: '09:00', endTime: '10:00' };
+                  setNewProject({
+                    ...newProject, 
+                    schedule: {
+                      ...newProject.schedule, 
+                      routine: { ...currentRoutine, startTime: e.target.value }
+                    }
+                  });
+                }}
+                className={`w-full px-4 py-2 rounded-xl bg-white dark:bg-gray-800 dark:text-white border border-gray-200 dark:border-gray-600 focus:border-${themeColor}-500 outline-none`}
+              />
+            </div>
+            <div className="flex-1 w-full">
+              <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 mr-2">پایان</label>
+              {/* Fixed: safely access routine and cast to ensure TypeScript identifies property existence */}
+              <input 
+                type="time" 
+                value={newProject.schedule.routine?.endTime || '10:00'}
+                onChange={e => {
+                  const currentRoutine: TimeRange = newProject.schedule.routine || { startTime: '09:00', endTime: '10:00' };
+                  setNewProject({
+                    ...newProject, 
+                    schedule: {
+                      ...newProject.schedule, 
+                      routine: { ...currentRoutine, endTime: e.target.value }
+                    }
+                  });
+                }}
+                className={`w-full px-4 py-2 rounded-xl bg-white dark:bg-gray-800 dark:text-white border border-gray-200 dark:border-gray-600 focus:border-${themeColor}-500 outline-none`}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="animate-fade-in space-y-4">
+            <div className="flex flex-wrap gap-2 justify-center">
+              {PERSIAN_DAYS.map((day, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => toggleDay(idx)}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold transition-all border-2 ${
+                    newProject.schedule.weeklyCustom?.[idx] 
+                    ? `bg-${themeColor}-600 border-${themeColor}-600 text-white shadow-md shadow-${themeColor}-200 dark:shadow-none` 
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500'
+                  }`}
+                >
+                  {day[0]}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
+              {Object.entries(newProject.schedule.weeklyCustom || {}).length === 0 ? (
+                <p className="text-center text-xs text-gray-400 py-4">روزهای مورد نظر خود را برای مطالعه انتخاب کنید.</p>
+              ) : (
+                Object.entries(newProject.schedule.weeklyCustom || {}).map(([idxStr, range]) => {
+                  const idx = parseInt(idxStr);
+                  return (
+                    <div key={idx} className="flex items-center gap-3 bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-100 dark:border-gray-700 animate-fade-in">
+                      <span className="w-16 text-xs font-bold text-gray-600 dark:text-gray-400">{PERSIAN_DAYS[idx]}</span>
+                      <input 
+                        type="time" 
+                        value={range?.startTime}
+                        onChange={e => updateDayTime(idx, 'startTime', e.target.value)}
+                        className="flex-1 px-2 py-1 text-xs bg-gray-50 dark:bg-gray-700 dark:text-white border border-gray-100 dark:border-gray-600 rounded-lg outline-none"
+                      />
+                      <span className="text-gray-300">تا</span>
+                      <input 
+                        type="time" 
+                        value={range?.endTime}
+                        onChange={e => updateDayTime(idx, 'endTime', e.target.value)}
+                        className="flex-1 px-2 py-1 text-xs bg-gray-50 dark:bg-gray-700 dark:text-white border border-gray-100 dark:border-gray-600 rounded-lg outline-none"
+                      />
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   // --- Views ---
@@ -206,8 +430,14 @@ export default function App() {
 
               <div className="space-y-3">
                 <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
-                  <span>وضعیت:</span>
-                  <span className="text-gray-800 dark:text-gray-200 font-medium">{PHASE_LABELS[p.currentPhase]}</span>
+                  <span>وضعیت یادگیری:</span>
+                  {p.lastAnalysis ? (
+                    <span className="text-gray-800 dark:text-gray-200 font-bold text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-md">
+                      {STATE_LABELS[p.lastAnalysis.learning_state] || p.lastAnalysis.learning_state}
+                    </span>
+                  ) : (
+                    <span className="text-gray-800 dark:text-gray-200 font-medium">{PHASE_LABELS[p.currentPhase]}</span>
+                  )}
                 </div>
                 
                 <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
@@ -217,7 +447,7 @@ export default function App() {
                   />
                 </div>
                 <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500">
-                  <span>پیشرفت کلی</span>
+                  <span>پیشرفت کمی</span>
                   <span>{p.progress}٪</span>
                 </div>
               </div>
@@ -235,23 +465,23 @@ export default function App() {
           <BrainCircuit size={32} />
         </div>
         <h2 className="text-2xl font-black text-gray-800 dark:text-white">طراحی مسیر یادگیری هوشمند</h2>
-        <p className="text-gray-500 dark:text-gray-400 mt-2">با کمک هوش مصنوعی، برنامه ای دقیق بر اساس منحنی فراموشی دریافت کنید.</p>
+        <p className="text-gray-500 dark:text-gray-400 mt-2">با سیستم Checkpoint هوشمند و برنامه منعطف</p>
       </div>
 
       <form onSubmit={handleCreateProject} className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">نام پروژه مطالعه</label>
-          <input 
-            required
-            type="text" 
-            value={newProject.name}
-            onChange={e => setNewProject({...newProject, name: e.target.value})}
-            className={`w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-700 dark:text-white border border-gray-200 dark:border-gray-600 focus:border-${themeColor}-500 focus:ring-2 focus:ring-${themeColor}-100 dark:focus:ring-${themeColor}-900 outline-none transition-all`}
-            placeholder="مثال: یادگیری React پیشرفته"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">نام پروژه مطالعه</label>
+            <input 
+              required
+              type="text" 
+              value={newProject.name}
+              onChange={e => setNewProject({...newProject, name: e.target.value})}
+              className={`w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-700 dark:text-white border border-gray-200 dark:border-gray-600 focus:border-${themeColor}-500 focus:ring-2 focus:ring-${themeColor}-100 dark:focus:ring-${themeColor}-900 outline-none transition-all`}
+              placeholder="مثال: یادگیری React پیشرفته"
+            />
+          </div>
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">تعداد صفحات/حجم</label>
             <input 
@@ -263,6 +493,7 @@ export default function App() {
               className={`w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-700 dark:text-white border border-gray-200 dark:border-gray-600 focus:border-${themeColor}-500 focus:ring-2 focus:ring-${themeColor}-100 dark:focus:ring-${themeColor}-900 outline-none transition-all`}
             />
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">سختی مطلب</label>
             <select 
@@ -273,15 +504,66 @@ export default function App() {
               {Object.values(Difficulty).map(v => <option key={v} value={v}>{v}</option>)}
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">اهمیت</label>
-            <select 
-              value={newProject.importance}
-              onChange={e => setNewProject({...newProject, importance: e.target.value as Importance})}
-              className={`w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-700 dark:text-white border border-gray-200 dark:border-gray-600 focus:border-${themeColor}-500 focus:ring-2 focus:ring-${themeColor}-100 dark:focus:ring-${themeColor}-900 outline-none transition-all`}
-            >
-              {Object.values(Importance).map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
+        </div>
+
+        {/* Chapters Section */}
+        <div className="space-y-4 bg-gray-50 dark:bg-gray-700/20 p-6 rounded-2xl border border-gray-100 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+             <div className="flex items-center gap-2">
+                <ListOrdered className={`text-${themeColor}-500`} size={20} />
+                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">ساختار فصل‌بندی</label>
+             </div>
+             <div className="flex items-center gap-2">
+                <span className="text-[10px] text-gray-400 font-bold">تعداد کل فصول:</span>
+                <input 
+                  type="number" 
+                  min="0"
+                  value={newProject.chapterCount}
+                  onChange={e => handleChapterCountChange(Number(e.target.value))}
+                  className="w-16 px-2 py-1 text-center text-xs bg-white dark:bg-gray-800 dark:text-white border border-gray-200 dark:border-gray-600 rounded-lg outline-none"
+                />
+             </div>
+          </div>
+          
+          {newProject.chapterCount > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2">
+               {newProject.chapters.map((title, idx) => (
+                 <div key={idx} className="relative">
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-300 pointer-events-none">{idx + 1}</span>
+                    <input 
+                      type="text"
+                      value={title}
+                      placeholder={`عنوان فصل ${idx + 1}`}
+                      onChange={e => handleChapterTitleChange(idx, e.target.value)}
+                      className={`w-full pr-8 pl-3 py-2 text-xs rounded-xl bg-white dark:bg-gray-800 dark:text-white border border-gray-100 dark:border-gray-600 focus:border-${themeColor}-500 outline-none transition-all`}
+                    />
+                 </div>
+               ))}
+            </div>
+          ) : (
+            <p className="text-center text-xs text-gray-400 italic">تعیین فصول به هوش مصنوعی در تقسیم‌بندی دقیق‌تر برنامه کمک می‌کند.</p>
+          )}
+        </div>
+
+        <ScheduleSelector />
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">اهمیت پروژه</label>
+          <div className="flex flex-wrap gap-2">
+            {Object.values(Importance).map(imp => (
+              <button
+                key={imp}
+                type="button"
+                onClick={() => setNewProject({...newProject, importance: imp})}
+                className={`flex-1 min-w-[80px] py-2 rounded-xl text-[11px] font-bold transition-all border ${
+                  newProject.importance === imp 
+                  ? `bg-${themeColor}-50 dark:bg-${themeColor}-900/30 border-${themeColor}-500 text-${themeColor}-600 dark:text-${themeColor}-400` 
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-400'
+                }`}
+              >
+                {imp}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -309,13 +591,30 @@ export default function App() {
   const renderDailyTasks = () => {
     const today = new Date();
     const todaysTasks: { project: Project, task: Task }[] = [];
+    const todaysCheckpoints: { project: Project, checkpoint: Checkpoint }[] = [];
 
     projects.forEach(p => {
+      // Find tasks
       p.tasks.forEach(t => {
         if (isSameDay(new Date(t.date), today)) {
           todaysTasks.push({ project: p, task: t });
         }
       });
+      // Find checkpoints
+      if (p.checkpoints) {
+        const start = new Date(p.createdAt);
+        // Reset time for diff
+        start.setHours(0,0,0,0);
+        const todayReset = new Date(today);
+        todayReset.setHours(0,0,0,0);
+        const diffDays = Math.floor((todayReset.getTime() - start.getTime()) / (1000 * 3600 * 24));
+        
+        p.checkpoints.forEach(cp => {
+           if (cp.day_offset === diffDays && !cp.isCompleted) {
+              todaysCheckpoints.push({ project: p, checkpoint: cp });
+           }
+        });
+      }
     });
 
     return (
@@ -325,7 +624,7 @@ export default function App() {
           <p className="text-gray-500 dark:text-gray-400 mt-1">{formatPersianDate(today)}</p>
         </header>
 
-        {todaysTasks.length === 0 ? (
+        {todaysTasks.length === 0 && todaysCheckpoints.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center border border-gray-100 dark:border-gray-700 shadow-sm">
             <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 size={32} />
@@ -334,35 +633,96 @@ export default function App() {
             <p className="text-gray-500 dark:text-gray-400">برای امروز وظیفه‌ای ندارید.</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {todaysTasks.map(({ project, task }) => (
-              <div key={task.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4 hover:shadow-md transition-all">
-                <button 
-                  onClick={() => toggleTask(project.id, task.id)}
-                  className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                    task.isCompleted 
-                    ? `bg-${project.color}-500 text-white` 
-                    : `border-2 border-${project.color}-200 dark:border-${project.color}-800 text-transparent hover:border-${project.color}-500`
-                  }`}
-                >
-                  <CheckCircle2 size={18} />
-                </button>
-                
-                <div className="flex-grow">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-[10px] px-2 py-0.5 rounded-md bg-${project.color}-50 dark:bg-${project.color}-900/30 text-${project.color}-600 dark:text-${project.color}-400 font-bold`}>
-                      {project.name}
-                    </span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500 border border-gray-100 dark:border-gray-700 px-1.5 rounded">
-                      {TASK_TYPE_LABELS[task.type]}
-                    </span>
+          <div className="space-y-6">
+            {/* Checkpoints Section */}
+            {todaysCheckpoints.length > 0 && (
+               <div className="space-y-3">
+                 <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                   <HelpCircle size={16} /> بررسی وضعیت (Checkpoints)
+                 </h2>
+                 {todaysCheckpoints.map(({ project, checkpoint }) => (
+                   <div key={checkpoint.id} className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
+                      <div className="flex justify-between items-start mb-4">
+                         <div>
+                            <div className="text-xs font-bold opacity-80 mb-1">{project.name}</div>
+                            <h3 className="font-bold text-lg">{checkpoint.purpose === 'diagnostic' ? 'چکاپ تشخیصی' : 'ارزیابی کوتاه'}</h3>
+                         </div>
+                         <div className="bg-white/20 p-2 rounded-lg"><Clock size={16} /></div>
+                      </div>
+                      
+                      <div className="space-y-4">
+                         {checkpoint.questions.map((q, idx) => (
+                           <div key={q.qid} className="bg-white/10 rounded-xl p-3 backdrop-blur-sm border border-white/10">
+                              <p className="text-sm font-medium mb-2">{idx + 1}. {q.text}</p>
+                              {q.answer_type === 'choice' && (
+                                <div className="flex flex-wrap gap-2">
+                                   {q.choices?.map(c => (
+                                     <button key={c.key} className="text-xs bg-white text-indigo-700 px-3 py-1.5 rounded-full font-bold hover:bg-gray-100 transition-colors">
+                                       {c.label}
+                                     </button>
+                                   ))}
+                                </div>
+                              )}
+                              {q.answer_type === 'number' && (
+                                <div className="flex gap-2">
+                                  {[1,2,3,4,5].map(n => (
+                                    <button key={n} className="w-8 h-8 rounded-full bg-white/20 hover:bg-white hover:text-indigo-700 flex items-center justify-center text-sm font-bold transition-all">
+                                      {n}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                           </div>
+                         ))}
+                      </div>
+
+                      <button 
+                        onClick={() => completeCheckpoint(project.id, checkpoint.id)}
+                        className="mt-4 w-full bg-white/20 hover:bg-white/30 text-white font-bold py-2 rounded-xl transition-colors text-sm"
+                      >
+                        ثبت پاسخ‌ها و به‌روزرسانی برنامه
+                      </button>
+                   </div>
+                 ))}
+               </div>
+            )}
+
+            {/* Tasks Section */}
+            {todaysTasks.length > 0 && (
+              <div className="space-y-3">
+                 <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                   <BookOpen size={16} /> وظایف امروز
+                 </h2>
+                {todaysTasks.map(({ project, task }) => (
+                  <div key={task.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4 hover:shadow-md transition-all">
+                    <button 
+                      onClick={() => toggleTask(project.id, task.id)}
+                      className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                        task.isCompleted 
+                        ? `bg-${project.color}-500 text-white` 
+                        : `border-2 border-${project.color}-200 dark:border-${project.color}-800 text-transparent hover:border-${project.color}-500`
+                      }`}
+                    >
+                      <CheckCircle2 size={18} />
+                    </button>
+                    
+                    <div className="flex-grow">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-md bg-${project.color}-50 dark:bg-${project.color}-900/30 text-${project.color}-600 dark:text-${project.color}-400 font-bold`}>
+                          {project.name}
+                        </span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500 border border-gray-100 dark:border-gray-700 px-1.5 rounded">
+                          {TASK_TYPE_LABELS[task.type]}
+                        </span>
+                      </div>
+                      <p className={`font-medium text-gray-800 dark:text-gray-200 ${task.isCompleted ? 'line-through text-gray-400 dark:text-gray-600' : ''}`}>
+                        {task.description}
+                      </p>
+                    </div>
                   </div>
-                  <p className={`font-medium text-gray-800 dark:text-gray-200 ${task.isCompleted ? 'line-through text-gray-400 dark:text-gray-600' : ''}`}>
-                    {task.description}
-                  </p>
-                </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>
@@ -393,6 +753,10 @@ export default function App() {
                 <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">سختی: {project.difficulty}</span>
                 <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">اهمیت: {project.importance}</span>
                 <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">{project.pageCount} صفحه</span>
+                <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">{project.chapterCount} فصل</span>
+                <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full flex items-center gap-1">
+                  <Calendar size={14} /> {project.schedule.isDaily ? 'روزانه' : 'روزهای خاص'}
+                </span>
               </div>
             </div>
 
@@ -408,34 +772,89 @@ export default function App() {
               </div>
             </div>
           </div>
-
-          {/* Progress Phases Visualizer */}
-          <div className="mt-8 relative">
-            <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 dark:bg-gray-700 -z-10 -translate-y-1/2 rounded-full"></div>
-            <div className="flex justify-between">
-              {Object.values(Phase).map((phase, idx) => {
-                 const isActive = project.currentPhase === phase;
-                 const phaseIndex = Object.values(Phase).indexOf(project.currentPhase);
-                 const isPassed = idx < phaseIndex;
-                 
-                 return (
-                  <div key={phase} className="flex flex-col items-center gap-2 bg-white dark:bg-gray-800 px-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
-                      isActive ? `border-${project.color}-500 bg-${project.color}-50 dark:bg-${project.color}-900/50 text-${project.color}-600 dark:text-${project.color}-400 scale-110 shadow-lg` : 
-                      isPassed ? `border-${project.color}-500 bg-${project.color}-500 text-white` : 
-                      'border-gray-200 dark:border-gray-600 text-gray-300 dark:text-gray-600'
-                    }`}>
-                      {isPassed ? <CheckCircle2 size={16} /> : <div className="text-xs font-bold">{idx + 1}</div>}
-                    </div>
-                    <span className={`text-xs font-medium ${isActive ? 'text-gray-800 dark:text-gray-200' : 'text-gray-400 dark:text-gray-600'}`}>
-                      {PHASE_LABELS[phase]}
-                    </span>
-                  </div>
-                 );
-              })}
-            </div>
+          
+          {/* Analyze Button */}
+          <div className="mt-6 flex justify-end">
+             <button 
+                onClick={() => handleAnalyzeProject(project)}
+                disabled={analyzing}
+                className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 dark:shadow-none transition-all disabled:opacity-50"
+             >
+                {analyzing ? <Loader2 className="animate-spin" size={18} /> : <Microscope size={18} />}
+                <span>{analyzing ? 'در حال آنالیز...' : 'تحلیل وضعیت یادگیری با هوش مصنوعی'}</span>
+             </button>
           </div>
         </div>
+
+        {/* Chapters Glance Card */}
+        {project.chapters.length > 0 && (
+           <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
+              <h3 className="text-xs font-bold text-gray-400 mb-3 flex items-center gap-2">
+                 <ListOrdered size={14} /> سرفصل‌های دوره
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                 {project.chapters.map((ch, i) => (
+                    <span key={i} className="text-[10px] bg-gray-50 dark:bg-gray-700 px-2 py-1 rounded-lg border border-gray-100 dark:border-gray-600 text-gray-600 dark:text-gray-300">
+                       {i+1}. {ch}
+                    </span>
+                 ))}
+              </div>
+           </div>
+        )}
+
+        {/* AI Insight Card */}
+        {project.lastAnalysis && (
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden animate-fade-in border border-gray-700">
+             <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+             
+             {/* Illusion Warning */}
+             {project.lastAnalysis.illusion_of_competence.detected && (
+               <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-3 mb-4 flex items-start gap-3">
+                 <AlertTriangle className="text-red-400 flex-shrink-0" size={20} />
+                 <div>
+                   <h4 className="font-bold text-red-200 text-sm">هشدار توهم یادگیری</h4>
+                   <p className="text-xs text-red-100/80 mt-1">{project.lastAnalysis.illusion_of_competence.reason}</p>
+                   {project.lastAnalysis.illusion_of_competence.corrective_action && (
+                     <div className="mt-2 text-xs bg-red-900/50 px-2 py-1 rounded inline-block text-red-200">
+                       راهکار: {project.lastAnalysis.illusion_of_competence.corrective_action}
+                     </div>
+                   )}
+                 </div>
+               </div>
+             )}
+
+             <div className="flex flex-col md:flex-row gap-6 relative z-10">
+               <div className="flex-1">
+                 <div className="flex items-center gap-2 mb-2">
+                   <Sparkles className="text-yellow-400" size={18} />
+                   <h3 className="font-bold text-lg">تحلیل مربی هوشمند</h3>
+                 </div>
+                 <p className="text-gray-300 text-sm leading-relaxed mb-4 text-justify">
+                   {project.lastAnalysis.user_feedback}
+                 </p>
+                 <div className="flex gap-2">
+                   <div className="bg-white/10 px-3 py-1.5 rounded-lg text-xs backdrop-blur-sm border border-white/10">
+                      <span className="opacity-70">وضعیت:</span> <span className="font-bold text-emerald-300">{STATE_LABELS[project.lastAnalysis.learning_state] || project.lastAnalysis.learning_state}</span>
+                   </div>
+                   <div className="bg-white/10 px-3 py-1.5 rounded-lg text-xs backdrop-blur-sm border border-white/10">
+                      <span className="opacity-70">پیش‌بینی تسلط:</span> <span className="font-bold text-sky-300">{project.lastAnalysis.future_projection}</span>
+                   </div>
+                 </div>
+               </div>
+               
+               <div className="md:w-1/3 bg-white/5 rounded-2xl p-4 border border-white/10 flex flex-col justify-center items-center text-center">
+                  <div className="text-xs text-gray-400 mb-2">اقدام پیشنهادی بعدی</div>
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 bg-gradient-to-br from-${project.color}-400 to-${project.color}-600`}>
+                    <Zap size={24} className="text-white" />
+                  </div>
+                  <div className="font-black text-xl mb-1">{TASK_TYPE_LABELS[project.lastAnalysis.next_action]}</div>
+                  <div className="text-[10px] text-gray-400 bg-black/20 px-2 py-1 rounded-full">
+                    {project.lastAnalysis.scheduling_recommendation}
+                  </div>
+               </div>
+             </div>
+          </div>
+        )}
 
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -452,7 +871,7 @@ export default function App() {
             <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                <h3 className="font-bold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
                  <TrendingUp size={18} className={`text-${themeColor}-500`} />
-                 وضعیت یادگیری
+                 آمار وظایف
                </h3>
                <div className="space-y-4">
                  <div className="flex justify-between text-sm">
@@ -469,19 +888,18 @@ export default function App() {
                  </div>
                </div>
             </div>
-
-            <div className={`bg-${themeColor}-600 p-5 rounded-2xl shadow-lg shadow-${themeColor}-200 dark:shadow-none text-white`}>
-               <h3 className="font-bold mb-2 flex items-center gap-2">
-                 <GraduationCap size={20} />
-                 توصیه هوشمند
-               </h3>
-               <p className="text-sm opacity-90 leading-relaxed">
-                 {project.currentPhase === Phase.EDUCATION && "تمرکز شما باید روی درک عمیق مفاهیم اولیه باشد. عجله نکنید."}
-                 {project.currentPhase === Phase.PRACTICE && "زمان حل مسئله است. دانش خود را در سناریوهای واقعی به کار بگیرید."}
-                 {project.currentPhase === Phase.CONSOLIDATION && "مرورهای فاصله‌دار کلید انتقال به حافظه بلندمدت است."}
-                 {project.currentPhase === Phase.MASTERY && "برای تسلط کامل، سعی کنید مفاهیم را به دیگران (یا خیالی) تدریس کنید."}
-               </p>
-            </div>
+            
+            {!project.lastAnalysis && (
+               <div className={`bg-${themeColor}-600 p-5 rounded-2xl shadow-lg shadow-${themeColor}-200 dark:shadow-none text-white`}>
+                  <h3 className="font-bold mb-2 flex items-center gap-2">
+                    <GraduationCap size={20} />
+                    نکته آموزشی
+                  </h3>
+                  <p className="text-sm opacity-90 leading-relaxed">
+                    برای دریافت تحلیل دقیق از وضعیت یادگیری خود و تشخیص نقاط ضعف احتمالی، روی دکمه "تحلیل وضعیت" در بالای صفحه کلیک کنید.
+                  </p>
+               </div>
+            )}
           </div>
         </div>
       </div>
