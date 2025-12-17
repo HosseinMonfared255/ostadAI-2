@@ -225,7 +225,7 @@ export default function App() {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-xl md:text-2xl font-black text-gray-800 dark:text-white">پروژه‌های مطالعاتی</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-xs md:text-sm mt-1">مدیریت هوشمند یادگیری با مربی استاد هوش</p>
+          <p className="text-gray-500 dark:text-gray-400 text-xs md:text-sm mt-1">مدیریت هوشمند یادگیری با هوش‌مصنوعی</p>
         </div>
         <button onClick={() => setActiveTab('create')} className={`bg-${themeColor}-600 hover:bg-${themeColor}-700 text-white px-4 py-2 md:px-5 md:py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-${themeColor}-100 dark:shadow-none text-sm md:text-base`}>
           <Plus size={18} />
@@ -584,8 +584,8 @@ export default function App() {
       {/* Sidebar */}
       <aside className="hidden md:flex flex-col w-72 bg-white dark:bg-gray-800 border-l dark:border-gray-700 p-8 transition-all duration-300">
         <div className="flex items-center gap-4 mb-12">
-          <div className={`w-12 h-12 bg-${themeColor}-600 rounded-2xl flex items-center justify-center text-white shadow-xl`}><BookOpen size={28} /></div>
-          <span className="text-2xl font-black text-gray-800 dark:text-white">استاد هوش</span>
+          <div className={`w-12 h-12 bg-${themeColor}-600 rounded-2xl flex items-center justify-center text-white shadow-xl min-w-[3rem]`}><BookOpen size={28} /></div>
+          <span className="text-xl font-black text-gray-800 dark:text-white leading-tight">برنامه ریزی با هوش‌مصنوعی</span>
         </div>
         <nav className="flex-1 space-y-3">
           <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all ${activeTab === 'dashboard' ? `bg-${themeColor}-50 dark:bg-${themeColor}-900/20 text-${themeColor}-700 dark:text-${themeColor}-300 font-black shadow-sm` : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}><LayoutDashboard size={22}/> داشبورد</button>
