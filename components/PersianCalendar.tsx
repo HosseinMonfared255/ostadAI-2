@@ -66,18 +66,18 @@ export const PersianCalendar: React.FC<PersianCalendarProps> = ({ project, onTas
   };
 
   return (
-    <div className="w-full bg-white dark:bg-gray-800 rounded-3xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+    <div className="w-full bg-white dark:bg-gray-800 rounded-3xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700">
       <div className="flex justify-between items-center mb-6">
-        <h3 className="font-black text-gray-800 dark:text-gray-100 flex items-center gap-2">
+        <h3 className="font-black text-gray-800 dark:text-gray-100 flex items-center gap-2 text-sm sm:text-base">
           <CalendarIcon className="text-indigo-600" size={20} />
           تقویم برنامه ریزی
         </h3>
-        <span className="text-xs font-bold bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full text-gray-500">
+        <span className="text-[10px] sm:text-xs font-bold bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full text-gray-500">
           {getPersianMonthName(today)} {new Intl.DateTimeFormat('fa-IR', { calendar: 'persian', year: 'numeric' }).format(today)}
         </span>
       </div>
       
-      <div className="grid grid-cols-7 gap-3">
+      <div className="grid grid-cols-7 gap-1 sm:gap-3">
         {['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'].map((d, i) => (
           <div key={i} className="text-center text-[10px] font-black text-gray-400 py-1">{d}</div>
         ))}
@@ -90,14 +90,14 @@ export const PersianCalendar: React.FC<PersianCalendarProps> = ({ project, onTas
             <button 
               key={idx} 
               onClick={() => setSelectedDate(date)}
-              className={`h-16 rounded-2xl flex flex-col items-center justify-center transition-all relative group ${
+              className={`h-14 sm:h-16 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center transition-all relative group ${
                 isToday ? 'ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-gray-900' : ''
               } ${tasks.length > 0 ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'bg-gray-50 dark:bg-gray-900/40 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
             >
-              <span className={`text-xs font-bold ${isToday ? 'text-indigo-600' : 'text-gray-500'}`}>{getPersianDay(date)}</span>
+              <span className={`text-[10px] sm:text-xs font-bold ${isToday ? 'text-indigo-600' : 'text-gray-500'}`}>{getPersianDay(date)}</span>
               <div className="flex gap-0.5 mt-1 overflow-hidden px-1">
                 {tasks.slice(0, 3).map(t => (
-                  <div key={t.id} className={`w-1.5 h-1.5 rounded-full bg-${getTaskColor(t.type)}-500`} />
+                  <div key={t.id} className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-${getTaskColor(t.type)}-500`} />
                 ))}
                 {tasks.length > 3 && <div className="w-1 h-1 rounded-full bg-gray-400" />}
               </div>
@@ -108,8 +108,11 @@ export const PersianCalendar: React.FC<PersianCalendarProps> = ({ project, onTas
 
       {/* Pop-up Modal */}
       {selectedDate && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedDate(null)}>
-          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-scale-in" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedDate(null)}>
+          <div 
+            className="bg-white dark:bg-gray-800 w-full sm:max-w-md rounded-t-[2rem] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh] sm:h-auto sm:max-h-[85vh] animate-slide-up sm:animate-scale-in" 
+            onClick={e => e.stopPropagation()}
+          >
             {/* Modal Header */}
             <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
               <div>
@@ -137,17 +140,17 @@ export const PersianCalendar: React.FC<PersianCalendarProps> = ({ project, onTas
                         <div className="space-y-3">
                           <input 
                             autoFocus
-                            className="w-full bg-white dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                            className="w-full bg-white dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:text-white"
                             defaultValue={task.description}
                             onBlur={(e) => handleUpdateTask(task.id, { description: e.target.value })}
                             onKeyDown={(e) => e.key === 'Enter' && handleUpdateTask(task.id, { description: e.currentTarget.value })}
                           />
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 overflow-x-auto pb-1">
                             {Object.values(TaskType).map(type => (
                               <button 
                                 key={type} 
                                 onClick={() => handleUpdateTask(task.id, { type })}
-                                className={`text-[9px] px-2 py-1 rounded-lg border font-bold ${task.type === type ? `bg-${getTaskColor(type)}-500 text-white border-${getTaskColor(type)}-500` : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-600'}`}
+                                className={`text-[9px] px-2 py-1 rounded-lg border font-bold whitespace-nowrap ${task.type === type ? `bg-${getTaskColor(type)}-500 text-white border-${getTaskColor(type)}-500` : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-600'}`}
                               >
                                 {TASK_TYPE_LABELS[type]}
                               </button>
@@ -164,7 +167,7 @@ export const PersianCalendar: React.FC<PersianCalendarProps> = ({ project, onTas
                             </div>
                             <p className="text-sm font-bold text-gray-700 dark:text-gray-200">{task.description}</p>
                           </div>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                             <button onClick={() => setEditingTaskId(task.id)} className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-indigo-500 rounded-lg"><Edit3 size={14} /></button>
                             <button onClick={() => handleDeleteTask(task.id)} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-rose-500 rounded-lg"><Trash2 size={14} /></button>
                           </div>
@@ -183,7 +186,7 @@ export const PersianCalendar: React.FC<PersianCalendarProps> = ({ project, onTas
                     placeholder="توضیح فعالیت را اینجا بنویسید..."
                     value={newTaskDesc}
                     onChange={(e) => setNewTaskDesc(e.target.value)}
-                    className="w-full bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500 transition-all resize-none min-h-[80px]"
+                    className="w-full bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500 transition-all resize-none min-h-[80px] dark:text-white"
                   />
                   <div className="flex flex-wrap gap-2">
                     {Object.values(TaskType).map(type => (

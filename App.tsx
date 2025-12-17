@@ -148,7 +148,7 @@ export default function App() {
       resetForm();
     } catch (error: any) {
       console.error("Create Project Error:", error);
-      alert("خطا در ایجاد برنامه. لطفاً از اتصال اینترنت خود مطمئن شوید.");
+      alert(`خطا در ایجاد برنامه:\n${error.message || JSON.stringify(error)}\n\nنکته: اگر روی Vercel هستید، مطمئن شوید متغیر API_KEY را در تنظیمات پروژه وارد کرده‌اید.`);
     } finally {
       setLoading(false);
     }
@@ -214,22 +214,23 @@ export default function App() {
       setProjects(prev => prev.map(p => p.id === project.id ? { ...p, lastAnalysis: result } : p));
     } catch (error: any) {
       console.error("Analysis failed", error);
-      alert("خطا در تحلیل وضعیت. لطفاً دوباره تلاش کنید.");
+      alert(`خطا در تحلیل وضعیت: ${error.message}`);
     } finally {
       setAnalyzing(false);
     }
   };
 
   const renderDashboard = () => (
-    <div className="space-y-6 animate-fade-in pb-20 md:pb-0">
+    <div className="space-y-6 animate-fade-in pb-24 md:pb-8">
       <header className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-black text-gray-800 dark:text-white">پروژه‌های مطالعاتی</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">مدیریت هوشمند یادگیری با مربی استاد هوش</p>
+          <h1 className="text-xl md:text-2xl font-black text-gray-800 dark:text-white">پروژه‌های مطالعاتی</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-xs md:text-sm mt-1">مدیریت هوشمند یادگیری با مربی استاد هوش</p>
         </div>
-        <button onClick={() => setActiveTab('create')} className={`bg-${themeColor}-600 hover:bg-${themeColor}-700 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-${themeColor}-100 dark:shadow-none`}>
-          <Plus size={20} />
-          <span>پروژه جدید</span>
+        <button onClick={() => setActiveTab('create')} className={`bg-${themeColor}-600 hover:bg-${themeColor}-700 text-white px-4 py-2 md:px-5 md:py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-${themeColor}-100 dark:shadow-none text-sm md:text-base`}>
+          <Plus size={18} />
+          <span className="hidden sm:inline">پروژه جدید</span>
+          <span className="sm:hidden">جدید</span>
         </button>
       </header>
 
@@ -245,8 +246,8 @@ export default function App() {
             <div key={p.id} onClick={() => setActiveTab(p.id)} className="group bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-100 dark:border-gray-700 hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer relative overflow-hidden">
               <div className={`absolute top-0 right-0 w-1.5 h-full bg-${p.color}-500`} />
               <div className="flex justify-between items-start mb-4">
-                <h3 className="font-black text-lg">{p.name}</h3>
-                <span className={`px-2 py-0.5 bg-${p.color}-50 dark:bg-${p.color}-900/30 text-${p.color}-600 text-[10px] rounded-lg font-bold`}>{p.difficulty}</span>
+                <h3 className="font-black text-lg truncate max-w-[70%]">{p.name}</h3>
+                <span className={`px-2 py-0.5 bg-${p.color}-50 dark:bg-${p.color}-900/30 text-${p.color}-600 text-[10px] rounded-lg font-bold whitespace-nowrap`}>{p.difficulty}</span>
               </div>
               <div className="space-y-4">
                 <div className="flex justify-between text-xs text-gray-500">
@@ -271,13 +272,13 @@ export default function App() {
   );
 
   const renderCreateProject = () => (
-    <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-3xl shadow-sm border p-8 animate-fade-in mb-20 md:mb-0">
+    <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-3xl shadow-sm border p-6 md:p-8 animate-fade-in mb-24 md:mb-0">
       <div className="mb-10 text-center">
         <div className={`w-16 h-16 bg-${themeColor}-50 dark:bg-${themeColor}-900/30 text-${themeColor}-600 rounded-2xl flex items-center justify-center mx-auto mb-4`}>
           <Sparkles size={32} />
         </div>
-        <h2 className="text-2xl font-black">تعریف پروژه مطالعاتی جدید</h2>
-        <p className="text-gray-500 text-sm mt-2">مدل‌های هوش مصنوعی بر اساس سرفصل‌های شما برنامه‌ریزی می‌کنند.</p>
+        <h2 className="text-xl md:text-2xl font-black dark:text-white">تعریف پروژه مطالعاتی جدید</h2>
+        <p className="text-gray-500 text-xs md:text-sm mt-2">مدل‌های هوش مصنوعی بر اساس سرفصل‌های شما برنامه‌ریزی می‌کنند.</p>
       </div>
 
       <form onSubmit={handleCreateProject} className="space-y-8">
@@ -304,7 +305,7 @@ export default function App() {
                 <ListOrdered className={`text-${themeColor}-600`} size={20} />
                 <label className="text-sm font-bold text-gray-700 dark:text-gray-200">تعیین سرفصل‌ها</label>
              </div>
-             <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-1 rounded-lg border">
+             <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-1 rounded-lg border dark:border-gray-600">
                 <button type="button" onClick={() => handleChapterCountChange(newProject.chapterCount - 1)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-500"><ChevronDown size={14}/></button>
                 <input type="number" readOnly value={newProject.chapterCount} className="w-8 text-center text-xs font-bold bg-transparent outline-none dark:text-white" />
                 <button type="button" onClick={() => handleChapterCountChange(newProject.chapterCount + 1)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-500"><ChevronUp size={14}/></button>
@@ -314,30 +315,97 @@ export default function App() {
              {newProject.chapters.map((title, idx) => (
                <div key={idx} className="flex items-center gap-2">
                  <span className="text-[10px] font-bold text-gray-400 w-4">{idx+1}</span>
-                 <input type="text" value={title} placeholder="نام فصل..." onChange={e => handleChapterTitleChange(idx, e.target.value)} className={`flex-1 px-3 py-2 text-xs rounded-lg bg-white dark:bg-gray-800 border outline-none focus:border-${themeColor}-400 transition-all dark:text-white`} />
+                 <input type="text" value={title} placeholder="نام فصل..." onChange={e => handleChapterTitleChange(idx, e.target.value)} className={`flex-1 px-3 py-2 text-xs rounded-lg bg-white dark:bg-gray-800 border dark:border-gray-600 outline-none focus:border-${themeColor}-400 transition-all dark:text-white`} />
                </div>
              ))}
           </div>
         </div>
 
-        <div className="bg-gray-50 dark:bg-gray-700/30 p-6 rounded-3xl border">
+        <div className="bg-gray-50 dark:bg-gray-700/30 p-6 rounded-3xl border dark:border-gray-700">
           <div className="flex items-center justify-between mb-4">
             <label className="text-sm font-bold text-gray-700 dark:text-gray-200">زمان‌بندی مطالعه</label>
-            <div className="flex gap-1 p-1 bg-white dark:bg-gray-800 rounded-xl border">
-              <button type="button" onClick={() => setNewProject({...newProject, schedule: {...newProject.schedule, isDaily: true}})} className={`px-4 py-1.5 rounded-lg text-xs font-bold ${newProject.schedule.isDaily ? `bg-${themeColor}-600 text-white` : 'text-gray-400'}`}>هر روز</button>
-              <button type="button" onClick={() => setNewProject({...newProject, schedule: {...newProject.schedule, isDaily: false}})} className={`px-4 py-1.5 rounded-lg text-xs font-bold ${!newProject.schedule.isDaily ? `bg-${themeColor}-600 text-white` : 'text-gray-400'}`}>روزهای خاص</button>
+            <div className="flex gap-1 p-1 bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-600">
+              <button type="button" onClick={() => setNewProject({...newProject, schedule: {...newProject.schedule, isDaily: true}})} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${newProject.schedule.isDaily ? `bg-${themeColor}-600 text-white` : 'text-gray-400'}`}>هر روز</button>
+              <button type="button" onClick={() => setNewProject({...newProject, schedule: {...newProject.schedule, isDaily: false}})} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${!newProject.schedule.isDaily ? `bg-${themeColor}-600 text-white` : 'text-gray-400'}`}>روزهای خاص</button>
             </div>
           </div>
-          {newProject.schedule.isDaily && (
-            <div className="flex gap-4">
+          {newProject.schedule.isDaily ? (
+            <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1">
                 <label className="text-[10px] text-gray-400 block mb-1">زمان شروع</label>
-                <input type="time" value={newProject.schedule.routine?.startTime} onChange={e => setNewProject({...newProject, schedule: {...newProject.schedule, routine: {...(newProject.schedule.routine || {startTime:'09:00', endTime:'10:00'}), startTime: e.target.value}}})} className="w-full p-3 rounded-xl bg-white dark:bg-gray-800 border outline-none dark:text-white" />
+                <input type="time" value={newProject.schedule.routine?.startTime} onChange={e => setNewProject({...newProject, schedule: {...newProject.schedule, routine: {...(newProject.schedule.routine || {startTime:'09:00', endTime:'10:00'}), startTime: e.target.value}}})} className="w-full p-3 rounded-xl bg-white dark:bg-gray-800 border dark:border-gray-600 outline-none dark:text-white ltr-input text-left" style={{direction: 'ltr'}} />
               </div>
               <div className="flex-1">
                 <label className="text-[10px] text-gray-400 block mb-1">زمان پایان</label>
-                <input type="time" value={newProject.schedule.routine?.endTime} onChange={e => setNewProject({...newProject, schedule: {...newProject.schedule, routine: {...(newProject.schedule.routine || {startTime:'09:00', endTime:'10:00'}), endTime: e.target.value}}})} className="w-full p-3 rounded-xl bg-white dark:bg-gray-800 border outline-none dark:text-white" />
+                <input type="time" value={newProject.schedule.routine?.endTime} onChange={e => setNewProject({...newProject, schedule: {...newProject.schedule, routine: {...(newProject.schedule.routine || {startTime:'09:00', endTime:'10:00'}), endTime: e.target.value}}})} className="w-full p-3 rounded-xl bg-white dark:bg-gray-800 border dark:border-gray-600 outline-none dark:text-white ltr-input text-left" style={{direction: 'ltr'}} />
               </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-500 mb-2">روزهای مورد نظر برای مطالعه را انتخاب کنید:</p>
+              {PERSIAN_DAYS.map((dayName, index) => {
+                const isSelected = !!newProject.schedule.weeklyCustom?.[index];
+                return (
+                  <div 
+                    key={index} 
+                    className={`p-3 rounded-2xl border-2 transition-all duration-200 ${
+                      isSelected 
+                        ? `bg-white dark:bg-gray-800 border-${themeColor}-500 shadow-md` 
+                        : 'bg-transparent border-transparent hover:bg-gray-100 dark:hover:bg-gray-800 border-dashed border-gray-300 dark:border-gray-600'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                      <div 
+                        className="flex items-center gap-3 cursor-pointer select-none w-full sm:w-auto"
+                        onClick={() => {
+                          const newCustom = { ...newProject.schedule.weeklyCustom };
+                          if (isSelected) {
+                            delete newCustom[index];
+                          } else {
+                            newCustom[index] = { startTime: '09:00', endTime: '10:00' };
+                          }
+                          setNewProject({ ...newProject, schedule: { ...newProject.schedule, weeklyCustom: newCustom } });
+                        }}
+                      >
+                        <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors flex-shrink-0 ${isSelected ? `bg-${themeColor}-500 border-${themeColor}-500` : 'border-gray-300 dark:border-gray-500'}`}>
+                          {isSelected && <Check size={14} className="text-white" />}
+                        </div>
+                        <span className={`text-sm font-bold ${isSelected ? 'text-gray-800 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>{dayName}</span>
+                      </div>
+
+                      {isSelected && (
+                        <div className="flex-1 flex items-center gap-2 mt-2 sm:mt-0 mr-0 sm:mr-4">
+                          <div className="relative flex-1">
+                             <input 
+                               type="time" 
+                               value={newProject.schedule.weeklyCustom?.[index]?.startTime || '09:00'} 
+                               onChange={(e) => {
+                                 const newCustom = { ...newProject.schedule.weeklyCustom };
+                                 if (newCustom[index]) newCustom[index]!.startTime = e.target.value;
+                                 setNewProject({ ...newProject, schedule: { ...newProject.schedule, weeklyCustom: newCustom } });
+                               }}
+                               className="w-full px-2 py-2 rounded-xl bg-gray-100 dark:bg-gray-900 border-none text-xs font-black text-center outline-none focus:ring-2 focus:ring-indigo-500 ltr-input"
+                             />
+                          </div>
+                          <span className="text-gray-300 font-black">-</span>
+                          <div className="relative flex-1">
+                             <input 
+                               type="time" 
+                               value={newProject.schedule.weeklyCustom?.[index]?.endTime || '10:00'} 
+                               onChange={(e) => {
+                                  const newCustom = { ...newProject.schedule.weeklyCustom };
+                                 if (newCustom[index]) newCustom[index]!.endTime = e.target.value;
+                                 setNewProject({ ...newProject, schedule: { ...newProject.schedule, weeklyCustom: newCustom } });
+                               }}
+                               className="w-full px-2 py-2 rounded-xl bg-gray-100 dark:bg-gray-900 border-none text-xs font-black text-center outline-none focus:ring-2 focus:ring-indigo-500 ltr-input"
+                             />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -346,15 +414,15 @@ export default function App() {
           <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">میزان اهمیت پروژه</label>
           <div className="flex flex-wrap gap-2">
             {Object.values(Importance).map(imp => (
-              <button key={imp} type="button" onClick={() => setNewProject({...newProject, importance: imp})} className={`flex-1 min-w-[90px] py-2.5 rounded-xl text-xs font-bold border transition-all ${newProject.importance === imp ? `bg-${themeColor}-600 border-${themeColor}-600 text-white shadow-md` : 'bg-white dark:bg-gray-800 border-gray-200 text-gray-400'}`}>
+              <button key={imp} type="button" onClick={() => setNewProject({...newProject, importance: imp})} className={`flex-1 min-w-[90px] py-2.5 rounded-xl text-xs font-bold border transition-all ${newProject.importance === imp ? `bg-${themeColor}-600 border-${themeColor}-600 text-white shadow-md` : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400'}`}>
                 {imp}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="flex gap-4 pt-4">
-          <button type="button" onClick={() => setActiveTab('dashboard')} className="flex-1 py-4 px-6 rounded-2xl border font-bold text-gray-500 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700">انصراف</button>
+        <div className="flex flex-col-reverse sm:flex-row gap-4 pt-4">
+          <button type="button" onClick={() => setActiveTab('dashboard')} className="flex-1 py-4 px-6 rounded-2xl border dark:border-gray-700 font-bold text-gray-500 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300">انصراف</button>
           <button type="submit" disabled={loading} className={`flex-[2] py-4 px-6 rounded-2xl bg-${themeColor}-600 text-white font-bold flex justify-center items-center gap-2 disabled:opacity-70 shadow-xl shadow-${themeColor}-100 dark:shadow-none transition-all hover:bg-${themeColor}-700`}>
             {loading ? <Loader2 className="animate-spin" /> : <BrainCircuit size={20} />}
             {loading ? 'در حال طراحی برنامه...' : 'تولید برنامه هوشمند'}
@@ -370,9 +438,9 @@ export default function App() {
     projects.forEach(p => p.tasks.forEach(t => { if (isSameDay(new Date(t.date), today)) todaysTasks.push({ project: p, task: t }); }));
 
     return (
-      <div className="animate-fade-in max-w-3xl mx-auto pb-20 md:pb-0">
+      <div className="animate-fade-in max-w-3xl mx-auto pb-24 md:pb-8">
         <header className="mb-10 text-center">
-          <h1 className="text-3xl font-black text-gray-800 dark:text-white">برنامه امروز شما</h1>
+          <h1 className="text-2xl md:text-3xl font-black text-gray-800 dark:text-white">برنامه امروز شما</h1>
           <p className="text-gray-500 mt-1">{formatPersianDate(today)}</p>
         </header>
 
@@ -386,7 +454,7 @@ export default function App() {
           <div className="space-y-4">
             {todaysTasks.map(({ project, task }) => (
               <div key={task.id} className="bg-white dark:bg-gray-800 p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-5 hover:shadow-md transition-all">
-                <button onClick={() => toggleTask(project.id, task.id)} className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all ${task.isCompleted ? `bg-emerald-500 border-emerald-500 text-white` : `border-gray-200`}`}>
+                <button onClick={() => toggleTask(project.id, task.id)} className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all ${task.isCompleted ? `bg-emerald-500 border-emerald-500 text-white` : `border-gray-200 dark:border-gray-600`}`}>
                   {task.isCompleted && <CheckCircle2 size={20} />}
                 </button>
                 <div className="flex-1">
@@ -408,22 +476,22 @@ export default function App() {
     const project = projects.find(p => p.id === projectId);
     if (!project) return null;
     return (
-      <div className="animate-fade-in space-y-8 pb-20 md:pb-0">
-        <button onClick={() => setActiveTab('dashboard')} className={`text-gray-500 flex items-center gap-1 text-sm font-bold hover:text-${themeColor}-600 transition-colors`}><ChevronRight size={18} /> بازگشت به پروژه‌ها</button>
+      <div className="animate-fade-in space-y-8 pb-24 md:pb-8">
+        <button onClick={() => setActiveTab('dashboard')} className={`text-gray-500 flex items-center gap-1 text-sm font-bold hover:text-${themeColor}-600 transition-colors dark:text-gray-400`}><ChevronRight size={18} /> بازگشت به پروژه‌ها</button>
         
-        <div className="bg-white dark:bg-gray-800 rounded-3xl p-8 border shadow-sm relative overflow-hidden border-gray-100 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 md:p-8 border shadow-sm relative overflow-hidden border-gray-100 dark:border-gray-700">
           <div className={`absolute top-0 right-0 w-full h-1.5 bg-${project.color}-500`} />
           <div className="flex flex-col md:flex-row justify-between md:items-center gap-6">
             <div>
-              <h1 className="text-4xl font-black text-gray-800 dark:text-white mb-4">{project.name}</h1>
+              <h1 className="text-2xl md:text-4xl font-black text-gray-800 dark:text-white mb-4">{project.name}</h1>
               <div className="flex gap-3 flex-wrap">
-                <span className="bg-gray-50 dark:bg-gray-700 px-4 py-1.5 rounded-xl text-xs font-bold text-gray-600 dark:text-gray-300">📚 {project.chapterCount} فصل</span>
-                <span className="bg-gray-50 dark:bg-gray-700 px-4 py-1.5 rounded-xl text-xs font-bold text-gray-600 dark:text-gray-300">📄 {project.pageCount} صفحه</span>
-                <span className="bg-gray-50 dark:bg-gray-700 px-4 py-1.5 rounded-xl text-xs font-bold text-gray-600 dark:text-gray-300">🔥 {project.importance}</span>
+                <span className="bg-gray-50 dark:bg-gray-700 px-3 md:px-4 py-1.5 rounded-xl text-[10px] md:text-xs font-bold text-gray-600 dark:text-gray-300">📚 {project.chapterCount} فصل</span>
+                <span className="bg-gray-50 dark:bg-gray-700 px-3 md:px-4 py-1.5 rounded-xl text-[10px] md:text-xs font-bold text-gray-600 dark:text-gray-300">📄 {project.pageCount} صفحه</span>
+                <span className="bg-gray-50 dark:bg-gray-700 px-3 md:px-4 py-1.5 rounded-xl text-[10px] md:text-xs font-bold text-gray-600 dark:text-gray-300">🔥 {project.importance}</span>
               </div>
             </div>
             <div className="flex gap-4">
-              <button onClick={() => handleAnalyzeProject(project)} disabled={analyzing} className={`flex items-center gap-2 bg-${themeColor}-600 text-white px-6 py-3 rounded-2xl text-sm font-black disabled:opacity-50 shadow-lg shadow-${themeColor}-100 dark:shadow-none transition-all hover:bg-${themeColor}-700`}>
+              <button onClick={() => handleAnalyzeProject(project)} disabled={analyzing} className={`flex items-center gap-2 bg-${themeColor}-600 text-white px-4 md:px-6 py-3 rounded-2xl text-xs md:text-sm font-black disabled:opacity-50 shadow-lg shadow-${themeColor}-100 dark:shadow-none transition-all hover:bg-${themeColor}-700 w-full justify-center md:w-auto`}>
                 {analyzing ? <Loader2 className="animate-spin" size={18} /> : <Microscope size={20} />}
                 تحلیل وضعیت با مدل {selectedModel.includes('flash') ? 'Flash' : 'Pro'}
               </button>
@@ -432,41 +500,41 @@ export default function App() {
         </div>
 
         {project.lastAnalysis && (
-           <div className={`bg-gradient-to-br from-${themeColor}-600 to-${themeColor}-800 text-white rounded-3xl p-8 shadow-xl animate-fade-in border border-${themeColor}-400/20`}>
+           <div className={`bg-gradient-to-br from-${themeColor}-600 to-${themeColor}-800 text-white rounded-3xl p-6 md:p-8 shadow-xl animate-fade-in border border-${themeColor}-400/20`}>
               <div className="flex items-center gap-2 mb-4">
                 <BrainCircuit size={24} />
-                <h3 className="text-xl font-black">تحلیل مربی هوشمند</h3>
+                <h3 className="text-lg md:text-xl font-black">تحلیل مربی هوشمند</h3>
               </div>
               <p className="text-sm leading-relaxed mb-6 opacity-90">{project.lastAnalysis.user_feedback}</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/10">
                   <span className="text-[10px] opacity-70 block mb-1 uppercase tracking-tighter">وضعیت یادگیری</span>
-                  <span className="font-bold">{STATE_LABELS[project.lastAnalysis.learning_state]}</span>
+                  <span className="font-bold text-sm md:text-base">{STATE_LABELS[project.lastAnalysis.learning_state]}</span>
                 </div>
                 <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/10">
                   <span className="text-[10px] opacity-70 block mb-1 uppercase tracking-tighter">اقدام پیشنهادی</span>
-                  <span className="font-bold">{TASK_TYPE_LABELS[project.lastAnalysis.next_action]}</span>
+                  <span className="font-bold text-sm md:text-base">{TASK_TYPE_LABELS[project.lastAnalysis.next_action]}</span>
                 </div>
                 <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/10">
                   <span className="text-[10px] opacity-70 block mb-1 uppercase tracking-tighter">پیش‌بینی تسلط</span>
-                  <span className="font-bold">{project.lastAnalysis.future_projection}</span>
+                  <span className="font-bold text-sm md:text-base">{project.lastAnalysis.future_projection}</span>
                 </div>
                 <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/10">
                   <span className="text-[10px] opacity-70 block mb-1 uppercase tracking-tighter">درجه عمق</span>
-                  <span className="font-bold">{project.lastAnalysis.estimated_dou}%</span>
+                  <span className="font-bold text-sm md:text-base">{project.lastAnalysis.estimated_dou}%</span>
                 </div>
               </div>
            </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
           <div className="lg:col-span-2">
             <PersianCalendar 
               project={project} 
               onTasksChange={(updatedTasks) => handleUpdateProjectTasks(project.id, updatedTasks)}
             />
 
-            {/* Color Legend - RESTORED */}
+            {/* Color Legend */}
             <div className="mt-6 bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700">
                <div className="flex items-center gap-2 mb-4 text-gray-500 dark:text-gray-400">
                   <Info size={16} />
@@ -490,7 +558,7 @@ export default function App() {
           </div>
           
           <div className="space-y-6">
-            <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl border shadow-sm border-gray-100 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-3xl border shadow-sm border-gray-100 dark:border-gray-700">
               <h3 className={`font-black mb-6 flex items-center gap-2 text-${themeColor}-600 dark:text-${themeColor}-400`}><TrendingUp size={22} /> پیشرفت پروژه</h3>
               <div className="space-y-6">
                 <div>
@@ -514,7 +582,7 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#f8fafc] dark:bg-gray-900 overflow-hidden font-['Vazirmatn'] text-gray-800 dark:text-gray-100">
       {/* Sidebar */}
-      <aside className="hidden md:flex flex-col w-72 bg-white dark:bg-gray-800 border-l p-8 transition-all duration-300">
+      <aside className="hidden md:flex flex-col w-72 bg-white dark:bg-gray-800 border-l dark:border-gray-700 p-8 transition-all duration-300">
         <div className="flex items-center gap-4 mb-12">
           <div className={`w-12 h-12 bg-${themeColor}-600 rounded-2xl flex items-center justify-center text-white shadow-xl`}><BookOpen size={28} /></div>
           <span className="text-2xl font-black text-gray-800 dark:text-white">استاد هوش</span>
@@ -527,30 +595,33 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-4 md:p-10 scroll-smooth">
+      <main className="flex-1 overflow-y-auto p-4 md:p-10 scroll-smooth relative">
         {activeTab === 'dashboard' && renderDashboard()}
         {activeTab === 'create' && renderCreateProject()}
         {activeTab === 'daily' && renderDailyTasks()}
         {typeof activeTab === 'string' && !['dashboard', 'create', 'daily'].includes(activeTab) && renderProjectDetail(activeTab)}
 
         {/* Bottom Nav for Mobile */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t dark:border-gray-700 p-3 flex justify-around items-center z-50">
-            <button onClick={() => setActiveTab('dashboard')} className={`p-2 rounded-xl transition-all ${activeTab === 'dashboard' ? `bg-${themeColor}-50 text-${themeColor}-600` : 'text-gray-400'}`}><LayoutDashboard size={24}/></button>
-            <button onClick={() => setActiveTab('create')} className={`bg-${themeColor}-600 text-white p-3 rounded-full shadow-lg shadow-${themeColor}-200 -mt-8 border-4 border-white dark:border-gray-800`}><Plus size={28}/></button>
-            <button onClick={() => setActiveTab('daily')} className={`p-2 rounded-xl transition-all ${activeTab === 'daily' ? `bg-${themeColor}-50 text-${themeColor}-600` : 'text-gray-400'}`}><CalendarDays size={24}/></button>
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t dark:border-gray-700 p-3 flex justify-around items-center z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+            <button onClick={() => setActiveTab('dashboard')} className={`p-2 rounded-xl transition-all ${activeTab === 'dashboard' ? `bg-${themeColor}-50 text-${themeColor}-600 dark:bg-${themeColor}-900/20 dark:text-${themeColor}-400` : 'text-gray-400'}`}><LayoutDashboard size={24}/></button>
+            <button onClick={() => setActiveTab('create')} className={`bg-${themeColor}-600 text-white p-3 rounded-full shadow-lg shadow-${themeColor}-200 dark:shadow-none -mt-8 border-4 border-white dark:border-gray-800`}>
+              <Plus size={28}/>
+            </button>
+            <button onClick={() => setActiveTab('daily')} className={`p-2 rounded-xl transition-all ${activeTab === 'daily' ? `bg-${themeColor}-50 text-${themeColor}-600 dark:bg-${themeColor}-900/20 dark:text-${themeColor}-400` : 'text-gray-400'}`}><CalendarDays size={24}/></button>
+            <button onClick={() => setShowSettings(true)} className="p-2 rounded-xl text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"><Settings size={24}/></button>
         </div>
       </main>
 
       {/* Settings Modal */}
       {showSettings && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowSettings(false)}>
-          <div className="bg-white dark:bg-gray-800 w-full max-sm:w-full max-w-md p-8 rounded-3xl shadow-2xl animate-fade-in relative" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm sm:p-4" onClick={() => setShowSettings(false)}>
+          <div className="bg-white dark:bg-gray-800 w-full sm:max-w-md p-6 sm:p-8 rounded-t-[2rem] sm:rounded-3xl shadow-2xl animate-slide-up sm:animate-scale-in relative" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-8">
               <h3 className="text-xl font-black dark:text-white">تنظیمات ظاهر</h3>
               <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-500"><Plus className="rotate-45" size={24}/></button>
             </div>
             
-            <div className="space-y-6">
+            <div className="space-y-6 pb-6 sm:pb-0">
               {/* Dark Mode Toggle */}
               <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border dark:border-gray-600">
                 <span className="font-bold dark:text-gray-200">حالت شب</span>
